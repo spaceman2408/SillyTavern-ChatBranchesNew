@@ -75,6 +75,43 @@ const buttonManager = new ButtonManager({
     onCreateBranch: async (mesId) => branchService.createBranchWithUUID(mesId),
 });
 
+function applyPluginStateToUi() {
+    settingsPanel.refresh();
+    buttonManager.injectOptionsButton();
+    buttonManager.injectMessageButtons();
+}
+
+function startPluginHealthWatcher() {
+    let previous = store.pluginRunning;
+    let offlineDelayMs = 5000;
+
+    const runCheck = async () => {
+        await pluginClient.healthCheck();
+        const isOnline = store.pluginRunning;
+
+        if (isOnline) {
+            offlineDelayMs = 5000;
+        } else {
+            offlineDelayMs = Math.min(offlineDelayMs * 2, 60000);
+        }
+
+        if (store.pluginRunning !== previous) {
+            previous = isOnline;
+            applyPluginStateToUi();
+            if (isOnline) {
+                toastr.success('Chat Branches plugin detected. Extension controls are now available.', 'Plugin Ready');
+            } else {
+                toastr.warning('Chat Branches plugin went offline. Extension controls were disabled.', 'Plugin Offline');
+            }
+        }
+
+        const nextDelay = isOnline ? 30000 : offlineDelayMs;
+        setTimeout(runCheck, nextDelay);
+    };
+
+    setTimeout(runCheck, store.pluginRunning ? 30000 : 5000);
+}
+
 function registerEvents() {
     const { ctx } = ctxSnapshot();
     const source = ctx.eventSource;
@@ -100,20 +137,13 @@ function registerEvents() {
 jQuery(async () => {
     await pluginClient.healthCheck();
 
-    if (!store.pluginRunning) {
-        settings.enabled = false;
-        const { ctx } = ctxSnapshot();
-        ctx.saveSettingsDebounced();
-    }
-
     await settingsPanel.mount();
     buttonManager.bind();
     registerEvents();
+    startPluginHealthWatcher();
 
     treeView.updateDependencies(treeDependencies());
     await branchService.ensureChatUUID();
 
-    buttonManager.injectOptionsButton();
-    buttonManager.injectMessageButtons();
-    settingsPanel.refresh();
+    applyPluginStateToUi();
 });
