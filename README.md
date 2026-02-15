@@ -2,22 +2,11 @@
   <img src="./logo.svg" alt="Chat Branches logo" width="760" />
 </p>
 
-## Table of Contents
+<div align="center">
 
-- [What You Get](#what-you-get)
-- [Main Features](#main-features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Extension](#extension)
-- [Server Plugin](#server-plugin)
-- [How to Use](#how-to-use)
-- [Settings](#settings)
-- [Notes](#notes)
-- [Limitations](#limitations)
-- [Troubleshooting](#troubleshooting)
-- [Plugin not detected](#plugin-not-detected)
-- [Tree missing expected branches](#tree-missing-expected-branches)
-- [Rename failed](#rename-failed)
+[Main Features](#main-features) - [Requirements](#requirements) - [Installation](#installation) - [How to Use](#how-to-use) - [Settings](#settings) - [Troubleshooting](#troubleshooting)
+
+</div>
 
 # NOTE
 While you are free to use this extension however you see fit, I originally made it for personal use, so it may be buggy or may not work for you. At the moment, it's not something I plan to release officially In ST cord. However, if you do use it and find issues, feel free to reach out to me. Otherwise, you are welcome to fork and modify it as needed, just don't forget the plugin as well.

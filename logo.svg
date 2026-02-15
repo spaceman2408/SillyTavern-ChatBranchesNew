@@ -1,46 +1,142 @@
 <svg width="960" height="320" viewBox="0 0 960 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Chat Branches</title>
-  <desc id="desc">Chat Branches logo with connected branch nodes</desc>
+  <desc id="desc">Professional logo with branching chat-mark icon and two-tone wordmark, plus slogan: Keeping branch relationships no matter the filename.</desc>
+
   <defs>
+    <!-- Background -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+      <stop offset="0%" stop-color="#070B14"/>
+      <stop offset="55%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#0A1428"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
+
+    <radialGradient id="vignette" cx="45%" cy="35%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.35"/>
+    </radialGradient>
+
+    <!-- Accent palettes -->
+    <linearGradient id="toneA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
+
+    <linearGradient id="toneB" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+
+    <linearGradient id="strokeAccent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="50%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+
+    <!-- Icon fill -->
+    <radialGradient id="iconFill" cx="35%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#0F234A"/>
+      <stop offset="55%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#060B14"/>
+    </radialGradient>
+
+    <!-- Soft glow -->
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.15" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 0.50 0" result="g"/>
       <feMerge>
-        <feMergeNode in="blur"/>
+        <feMergeNode in="g"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
+
+    <!-- Card shadow -->
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- Title glow -->
+    <filter id="titleGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.6" flood-color="#38BDF8" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#A78BFA" flood-opacity="0.12"/>
+    </filter>
+
+    <!-- Fine highlight -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
-  <rect x="8" y="8" width="944" height="304" rx="20" fill="url(#bg)" stroke="#334155" stroke-width="2"/>
+  <!-- Card -->
+  <rect x="10" y="10" width="940" height="300" rx="22" fill="url(#bg)" stroke="#1F2A44" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="10" y="10" width="940" height="300" rx="22" fill="url(#vignette)"/>
 
-  <g stroke="url(#accent)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.95" filter="url(#glow)">
-    <path d="M180 156 C250 156, 250 92, 320 92"/>
-    <path d="M180 156 C250 156, 250 220, 320 220"/>
-    <path d="M390 92 C460 92, 460 92, 530 92"/>
-    <path d="M390 220 C460 220, 460 220, 530 220"/>
-    <path d="M600 92 C670 92, 670 156, 740 156"/>
-    <path d="M600 220 C670 220, 670 156, 740 156"/>
+  <!-- LEFT ICON: chat bubble + branching network -->
+  <g transform="translate(92,70)">
+    <!-- Icon container -->
+    <rect x="0" y="0" width="220" height="180" rx="26" fill="url(#iconFill)" stroke="#22314A" stroke-width="1.4"/>
+
+    <!-- Chat bubble silhouette -->
+    <path d="M52 52
+             C52 35, 66 22, 84 22
+             H140
+             C158 22, 172 35, 172 52
+             V92
+             C172 110, 158 124, 140 124
+             H112
+             L92 140
+             C89 143, 84 141, 84 136
+             V124
+             H84
+             C66 124, 52 110, 52 92
+             Z"
+          fill="#0A1326" stroke="url(#strokeAccent)" stroke-width="2" opacity="0.98"/>
+
+    <!-- Branch lines (inside bubble) -->
+    <!-- Node centers: (84,74), (118,54), (118,94) -->
+    <!-- Radius: 6.2 -->
+    <!-- Endpoints adjusted to node edges (simple horizontal connection) -->
+    <g fill="none" stroke="url(#strokeAccent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)">
+      <path d="M90.2 74 C104 74, 106 54, 111.8 54"/>
+      <path d="M90.2 74 C104 74, 106 94, 111.8 94"/>
+    </g>
+
+    <!-- Nodes -->
+    <g stroke="#9AE6FF" stroke-width="1.6" opacity="0.98">
+      <circle cx="84" cy="74" r="6.2" fill="#0B1220"/>
+      <circle cx="118" cy="54" r="6.2" fill="#0B1220"/>
+      <circle cx="118" cy="94" r="6.2" fill="#0B1220"/>
+    </g>
+    <g fill="#EAF2FF" opacity="0.9">
+      <circle cx="84" cy="74" r="1.8"/>
+      <circle cx="118" cy="54" r="1.8"/>
+      <circle cx="118" cy="94" r="1.8"/>
+    </g>
+
+    <!-- Icon sheen -->
+    <path d="M18 22 C55 6, 120 4, 175 28 C128 22, 74 26, 40 44 C28 51, 20 40, 18 22Z"
+          fill="url(#sheen)" opacity="0.28"/>
   </g>
 
-  <g fill="#e2e8f0" stroke="#0ea5e9" stroke-width="3">
-    <circle cx="150" cy="156" r="20" fill="#0b1220"/>
-    <circle cx="355" cy="92" r="20" fill="#0b1220"/>
-    <circle cx="355" cy="220" r="20" fill="#0b1220"/>
-    <circle cx="565" cy="92" r="20" fill="#0b1220"/>
-    <circle cx="565" cy="220" r="20" fill="#0b1220"/>
-    <circle cx="770" cy="156" r="22" fill="#0b1220"/>
-  </g>
+  <!-- WORDMARK -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif">
+    <!-- Main title -->
+    <text x="365" y="145" font-size="54" font-weight="820" letter-spacing="0.2" filter="url(#titleGlow)">
+      <tspan fill="url(#toneA)">Chat</tspan>
+      <tspan dx="14" fill="url(#toneB)">Branches</tspan>
+    </text>
 
-  <g font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">
-    <text x="480" y="58" font-size="40" font-weight="700" fill="#f8fafc">Chat Branches</text>
-    <text x="480" y="282" font-size="18" fill="#93c5fd">SillyTavern Extension</text>
+    <!-- Slogan -->
+    <text x="365" y="187" font-size="16.5" font-weight="650" fill="#B7C7E6" letter-spacing="0.18">
+      Keeping branch relationships no matter the filename
+    </text>
+
+    <!-- Divider -->
+    <path d="M365 204 H748" stroke="#22314A" stroke-width="1.2" opacity="0.9"/>
   </g>
 </svg>
