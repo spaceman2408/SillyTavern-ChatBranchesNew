@@ -1,6 +1,6 @@
 /* Horizontal expansion variant: hierarchy grows from left to right. */
 .family-tree-wrapper.tree-layout-horizontal {
-    padding: 24px 28px;
+    padding: 12px 20px;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .family-tree-inner {
@@ -11,24 +11,26 @@
     display: flex;
     flex-direction: row;
     align-items: flex-start;
-    margin: 8px 0;
+    margin: 2px 0;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-entry {
-    margin-right: 22px;
+    margin-right: 14px;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-children {
     display: flex;
     flex-direction: column;
     margin-top: 0;
-    gap: 8px;
+    gap: 2px;
     justify-content: flex-start;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-node {
     min-width: 170px;
     text-align: left;
+    padding-top: 6px;
+    padding-bottom: 6px;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .node-content {
@@ -48,5 +50,5 @@
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-children {
-    padding-left: 14px;
+    padding-left: 8px;
 }
