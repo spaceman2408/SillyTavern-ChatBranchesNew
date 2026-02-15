@@ -1,0 +1,1 @@
+export { MessageViewerController as MessageViewerPopup } from '../message-viewer/MessageViewerController.js';
