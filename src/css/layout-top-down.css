@@ -1,0 +1,23 @@
+/* Top-down variant: keeps classic branch layout and SVG connectors enabled. */
+.family-tree-wrapper.tree-layout-top-down .family-tree-inner {
+    display: flex;
+    justify-content: center;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 10px;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-children {
+    display: flex;
+    margin-top: 20px;
+    justify-content: center;
+}
+
+.family-tree-wrapper.tree-layout-top-down #chat_tree_lines,
+.family-tree-wrapper.tree-layout-top-down #chat_tree_lines path {
+    opacity: 0.95;
+}

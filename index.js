@@ -44,6 +44,7 @@ function treeDependencies() {
         chat: snapshot.chat,
         saveChat: snapshot.ctx.saveChat,
         chat_metadata: snapshot.chatMetadata,
+        layoutVariant: settings.ui?.treeLayout || 'top-down',
     };
 }
 
@@ -59,6 +60,13 @@ const settingsPanel = new SettingsPanel({
         ctx.saveSettingsDebounced();
     },
     onRebuild: async () => rebuildService.showRebuildDialog(),
+    onLayoutChange: async (layoutVariant) => {
+        settings.ui.treeLayout = layoutVariant;
+        const { ctx } = ctxSnapshot();
+        ctx.saveSettingsDebounced();
+        treeView.updateDependencies(treeDependencies());
+        treeView.applyLayoutVariant();
+    },
 });
 
 const buttonManager = new ButtonManager({

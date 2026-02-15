@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
     enabled: true,
     ui: {
         autoInjectButtons: true,
+        treeLayout: 'top-down',
     },
     diagnostics: {
         verbose: false,

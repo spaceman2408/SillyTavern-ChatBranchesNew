@@ -1,0 +1,53 @@
+/* List variant: compact readable list for very large trees. */
+.family-tree-wrapper.tree-layout-list {
+    padding: 18px 22px;
+}
+
+.family-tree-wrapper.tree-layout-list #chat_tree_lines {
+    display: none;
+}
+
+.family-tree-wrapper.tree-layout-list .family-tree-inner {
+    display: block;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-branch {
+    display: block;
+    margin: 6px 0;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-entry {
+    display: block;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-children {
+    display: block;
+    margin-top: 8px;
+    margin-left: 18px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.family-tree-wrapper.tree-layout-list .tree-node {
+    min-width: 100%;
+    width: fit-content;
+    max-width: min(100%, 720px);
+    text-align: left;
+    padding-right: 34px;
+}
+
+.family-tree-wrapper.tree-layout-list .node-content {
+    justify-content: flex-start;
+}
+
+.family-tree-wrapper.tree-layout-list .expand-toggle {
+    top: 50%;
+    right: 8px;
+    left: auto;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+
+.family-tree-wrapper.tree-layout-list .expand-toggle:hover {
+    transform: translateY(-50%) scale(1.12);
+}

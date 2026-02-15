@@ -1,0 +1,57 @@
+/* Horizontal expansion variant: hierarchy grows from left to right. */
+.family-tree-wrapper.tree-layout-horizontal {
+    padding: 24px 28px;
+}
+
+.family-tree-wrapper.tree-layout-horizontal #chat_tree_lines {
+    display: none;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .family-tree-inner {
+    display: block;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-branch {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin: 8px 0;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-entry {
+    margin-right: 22px;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-children {
+    display: flex;
+    flex-direction: column;
+    margin-top: 0;
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node {
+    min-width: 170px;
+    text-align: left;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .node-content {
+    justify-content: flex-start;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .expand-toggle {
+    top: 50%;
+    right: -11px;
+    left: auto;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+
+.family-tree-wrapper.tree-layout-horizontal .expand-toggle:hover {
+    transform: translateY(-50%) scale(1.15);
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-children {
+    border-left: 1px dashed rgba(255, 255, 255, 0.15);
+    padding-left: 14px;
+}

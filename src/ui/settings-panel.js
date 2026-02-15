@@ -2,10 +2,11 @@ import { EXTENSION_NAME, PLUGIN_REPO_URL } from '../constants.js';
 import { ctxSnapshot } from '../context.js';
 
 export class SettingsPanel {
-    constructor({ getSettings, onToggleEnabled, onRebuild, pluginClient, store }) {
+    constructor({ getSettings, onToggleEnabled, onRebuild, onLayoutChange, pluginClient, store }) {
         this.getSettings = getSettings;
         this.onToggleEnabled = onToggleEnabled;
         this.onRebuild = onRebuild;
+        this.onLayoutChange = onLayoutChange;
         this.pluginClient = pluginClient;
         this.store = store;
     }
@@ -20,6 +21,7 @@ export class SettingsPanel {
 
         const settings = this.getSettings();
         $('#chat_branches_enabled').prop('checked', Boolean(settings.enabled));
+        $('#chat_branches_tree_layout').val(settings.ui?.treeLayout || 'top-down');
 
         $(document).off('input.chatBranchesSettings', '#chat_branches_enabled');
         $(document).on('input.chatBranchesSettings', '#chat_branches_enabled', async (event) => {
@@ -45,12 +47,19 @@ export class SettingsPanel {
         $(document).off('click.chatBranchesInstall', '#chat_branches_install_plugin');
         $(document).on('click.chatBranchesInstall', '#chat_branches_install_plugin', () => this.showInstallPopup());
 
+        $(document).off('change.chatBranchesLayout', '#chat_branches_tree_layout');
+        $(document).on('change.chatBranchesLayout', '#chat_branches_tree_layout', async (event) => {
+            const layout = String($(event.currentTarget).val() || 'top-down');
+            await this.onLayoutChange(layout);
+        });
+
         this.refresh();
     }
 
     refresh() {
         const settings = this.getSettings();
         $('#chat_branches_enabled').prop('checked', Boolean(settings.enabled));
+        $('#chat_branches_tree_layout').val(settings.ui?.treeLayout || 'top-down');
         const rebuildButton = $('#chat_branches_rebuild');
 
         if (!this.store.pluginRunning) {

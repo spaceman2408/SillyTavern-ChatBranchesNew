@@ -22,6 +22,7 @@ export class TreeViewController {
         this.pluginBaseUrl = dependencies.pluginBaseUrl;
         this.selected_group = dependencies.selected_group;
         this.chat_metadata = dependencies.chat_metadata;  // Add chat_metadata reference
+        this.layoutVariant = dependencies.layoutVariant || 'top-down';
 
         // State
         this.treeRoots = [];
@@ -83,7 +84,60 @@ export class TreeViewController {
         if (dependencies.chat_metadata !== undefined) {
             this.chat_metadata = dependencies.chat_metadata;
         }
+        if (dependencies.layoutVariant !== undefined) {
+            this.layoutVariant = dependencies.layoutVariant || 'top-down';
+        }
         this.renameHandler.updateDependencies(dependencies);
+    }
+
+    getLayoutClass() {
+        const layout = this.layoutVariant || 'top-down';
+        if (layout === 'horizontal') return 'tree-layout-horizontal';
+        if (layout === 'list') return 'tree-layout-list';
+        return 'tree-layout-top-down';
+    }
+
+    shouldDrawLines() {
+        return (this.layoutVariant || 'top-down') === 'top-down';
+    }
+
+    getVariantCssPath() {
+        const safeLayout = ['top-down', 'horizontal', 'list'].includes(this.layoutVariant)
+            ? this.layoutVariant
+            : 'top-down';
+        return `/scripts/extensions/third-party/${this.extensionName}/src/css/layout-${safeLayout}.css`;
+    }
+
+    ensureTreeStylesLoaded() {
+        const baseHref = `/scripts/extensions/third-party/${this.extensionName}/src/css/chat-tree-base.css`;
+        const variantHref = this.getVariantCssPath();
+
+        let baseLink = $('#chat-tree-base-styles');
+        if (!baseLink.length) {
+            $('head').append(`<link id="chat-tree-base-styles" rel="stylesheet" href="${baseHref}">`);
+            baseLink = $('#chat-tree-base-styles');
+        } else {
+            baseLink.attr('href', baseHref);
+        }
+
+        let variantLink = $('#chat-tree-layout-styles');
+        if (!variantLink.length) {
+            $('head').append(`<link id="chat-tree-layout-styles" rel="stylesheet" href="${variantHref}">`);
+            variantLink = $('#chat-tree-layout-styles');
+        } else {
+            variantLink.attr('href', variantHref);
+        }
+    }
+
+    applyLayoutVariant() {
+        this.ensureTreeStylesLoaded();
+        if ($('#chat_tree_overlay').length) {
+            if (this.treeRoots.length > 0) {
+                this.render();
+            } else {
+                this.drawLines();
+            }
+        }
     }
 
     // =========================================================================
@@ -325,7 +379,7 @@ export class TreeViewController {
         }
 
         const treeHtml = `
-            <div class="family-tree-wrapper">
+            <div class="family-tree-wrapper ${this.getLayoutClass()}">
                 <svg id="chat_tree_lines"></svg>
                 <div class="family-tree-inner">
                     ${this.treeRoots.map(root => this.renderNodeRecursive(root, 0)).join('')}
@@ -390,10 +444,24 @@ export class TreeViewController {
     drawLines() {
         const $svg = $('#chat_tree_lines');
         const $wrapper = $('.family-tree-wrapper');
-        
+
+        if (!$svg.length || !$wrapper.length) return;
+
+        if (!this.shouldDrawLines()) {
+            $svg.empty();
+            $svg.hide();
+            return;
+        }
+
+        $svg.show();
         $svg.attr('width', $wrapper[0].scrollWidth);
         $svg.attr('height', $wrapper[0].scrollHeight);
         $svg.empty();
+
+        const wrapperRect = $wrapper[0].getBoundingClientRect();
+        const $content = $('#chat_tree_content');
+        const scrollLeft = $content.scrollLeft();
+        const scrollTop = $content.scrollTop();
 
         $('.tree-node').each((_, el) => {
             const $node = $(el);
@@ -401,18 +469,18 @@ export class TreeViewController {
             const $childrenContainer = $parentBranch.children('.tree-children');
 
             if ($childrenContainer.length > 0 && $childrenContainer.is(':visible')) {
-                const startRect = $node.offset();
-                const containerRect = $wrapper.offset();
+                const startRect = $node[0].getBoundingClientRect();
 
-                const x1 = (startRect.left - containerRect.left) + ($node.outerWidth() / 2) + $wrapper.scrollLeft();
-                const y1 = (startRect.top - containerRect.top) + $node.outerHeight() + $wrapper.scrollTop();
+                const x1 = (startRect.left - wrapperRect.left) + (startRect.width / 2) + scrollLeft;
+                const y1 = (startRect.top - wrapperRect.top) + startRect.height + scrollTop;
 
                 $childrenContainer.children('.tree-branch').each((_, childBranch) => {
                     const $childNode = $(childBranch).children('.tree-entry').children('.tree-node');
-                    const childRect = $childNode.offset();
+                    if (!$childNode.length) return;
+                    const childRect = $childNode[0].getBoundingClientRect();
 
-                    const x2 = (childRect.left - containerRect.left) + ($childNode.outerWidth() / 2) + $wrapper.scrollLeft();
-                    const y2 = (childRect.top - containerRect.top) + $wrapper.scrollTop();
+                    const x2 = (childRect.left - wrapperRect.left) + (childRect.width / 2) + scrollLeft;
+                    const y2 = (childRect.top - wrapperRect.top) + scrollTop;
 
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     const cY = (y1 + y2) / 2;
@@ -1031,11 +1099,7 @@ export class TreeViewController {
 
     async renderModalSkeleton() {
         $('#chat_tree_overlay').remove();
-        $('style#chat-tree-styles').remove();
-
-        // Load external CSS file for better maintainability
-        const css = await fetch(`/scripts/extensions/third-party/${this.extensionName}/src/css/chat-tree-view.css`).then(r => r.text());
-        $('head').append(`<style id="chat-tree-styles">${css}</style>`);
+        this.ensureTreeStylesLoaded();
 
         const html = `
             <div id="chat_tree_overlay">
@@ -1129,7 +1193,6 @@ export class TreeViewController {
         }
         
         $('#chat_tree_overlay').fadeOut(200, function() { $(this).remove(); });
-        $('style#chat-tree-styles').remove();
         $(window).off('resize.chatTree');
         $(document).off('mousemove.chatTree mouseup.chatTree mouseleave.chatTree');
         $('#chat_tree_content').off('mousedown.chatTree touchstart.chatTree touchmove.chatTree touchend.chatTree touchcancel.chatTree touchstart.chatTreeBlank touchmove.chatTreeBlank touchend.chatTreeBlank touchcancel.chatTreeBlank touchend.expandToggleTouch');
