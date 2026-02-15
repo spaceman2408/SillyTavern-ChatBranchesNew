@@ -118,3 +118,11 @@ Open **Extensions -> Chat Branches**:
 - Avoid invalid filename characters: `< > : " / \ | ? *`
 - Can't start a name with a dot `.` or space
 - Can't go over 255 characters
+
+# Quick Showcase
+
+### The main tree view
+![Chat Branches View](https://i.imgur.com/kpAw0l6.png)
+
+### The message viewer popup
+![Chat View Popup](https://i.imgur.com/iUV8SVi.png)
