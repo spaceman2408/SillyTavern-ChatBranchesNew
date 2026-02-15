@@ -43,6 +43,8 @@ export class TreeViewController {
         
         // UI State
         this.resizeTimer = null;
+        this.lineRedrawTimer = null;
+        this.lineRedrawRaf = null;
         this.isPanning = false;
         this.wasPanning = false; // Track if we just finished panning
         this.panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
@@ -207,7 +209,7 @@ export class TreeViewController {
         if (this.treeRoots.length === 0) {
             return;
         }
-        this.drawLines();
+        this.refreshLines();
         this.bindEvents();
     }
 
@@ -217,6 +219,23 @@ export class TreeViewController {
 
     drawLines() {
         drawTreeLines(this.layoutVariant);
+    }
+
+    refreshLines() {
+        this.drawLines();
+
+        if (this.lineRedrawRaf) {
+            cancelAnimationFrame(this.lineRedrawRaf);
+        }
+        if (this.lineRedrawTimer) {
+            clearTimeout(this.lineRedrawTimer);
+        }
+
+        // Mobile browsers may settle layout one frame later on incremental expand/collapse.
+        this.lineRedrawRaf = requestAnimationFrame(() => {
+            this.drawLines();
+            this.lineRedrawTimer = setTimeout(() => this.drawLines(), 60);
+        });
     }
 
     renderRenameInput(node) {
@@ -282,14 +301,14 @@ export class TreeViewController {
             }
         }
         this.render();
-        this.drawLines();
+        this.refreshLines();
     }
 
     collapseAllNodes() {
         // Clear all expanded nodes
         this.expandedUUIDs.clear();
         this.render();
-        this.drawLines();
+        this.refreshLines();
     }
 
     // =========================================================================
@@ -419,7 +438,7 @@ export class TreeViewController {
         
         $(window).on('resize.chatTree', () => {
             clearTimeout(this.resizeTimer);
-            this.resizeTimer = setTimeout(() => this.drawLines(), 100);
+            this.resizeTimer = setTimeout(() => this.refreshLines(), 100);
         });
     }
 
@@ -460,6 +479,14 @@ export class TreeViewController {
     hide() {
         $('#chat_tree_overlay').fadeOut(200, function() { $(this).remove(); });
         unbindTreeEvents(this);
+        if (this.lineRedrawRaf) {
+            cancelAnimationFrame(this.lineRedrawRaf);
+            this.lineRedrawRaf = null;
+        }
+        if (this.lineRedrawTimer) {
+            clearTimeout(this.lineRedrawTimer);
+            this.lineRedrawTimer = null;
+        }
         this.cancelRename();
     }
 

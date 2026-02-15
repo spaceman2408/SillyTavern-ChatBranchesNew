@@ -18,9 +18,6 @@ export function drawTreeLines(layoutVariant) {
     $svg.empty();
 
     const wrapperRect = $wrapper[0].getBoundingClientRect();
-    const $content = $('#chat_tree_content');
-    const scrollLeft = $content.scrollLeft();
-    const scrollTop = $content.scrollTop();
     const isHorizontal = (layoutVariant || 'top-down') === 'horizontal';
 
     $('.tree-node').each((_, el) => {
@@ -31,11 +28,11 @@ export function drawTreeLines(layoutVariant) {
         if ($childrenContainer.length > 0 && $childrenContainer.is(':visible')) {
             const startRect = $node[0].getBoundingClientRect();
             const x1 = isHorizontal
-                ? (startRect.right - wrapperRect.left) + scrollLeft
-                : (startRect.left - wrapperRect.left) + (startRect.width / 2) + scrollLeft;
+                ? (startRect.right - wrapperRect.left)
+                : (startRect.left - wrapperRect.left) + (startRect.width / 2);
             const y1 = isHorizontal
-                ? (startRect.top - wrapperRect.top) + (startRect.height / 2) + scrollTop
-                : (startRect.top - wrapperRect.top) + startRect.height + scrollTop;
+                ? (startRect.top - wrapperRect.top) + (startRect.height / 2)
+                : (startRect.top - wrapperRect.top) + startRect.height;
 
             $childrenContainer.children('.tree-branch').each((_, childBranch) => {
                 const $childNode = $(childBranch).children('.tree-entry').children('.tree-node');
@@ -43,11 +40,11 @@ export function drawTreeLines(layoutVariant) {
                 const childRect = $childNode[0].getBoundingClientRect();
 
                 const x2 = isHorizontal
-                    ? (childRect.left - wrapperRect.left) + scrollLeft
-                    : (childRect.left - wrapperRect.left) + (childRect.width / 2) + scrollLeft;
+                    ? (childRect.left - wrapperRect.left)
+                    : (childRect.left - wrapperRect.left) + (childRect.width / 2);
                 const y2 = isHorizontal
-                    ? (childRect.top - wrapperRect.top) + (childRect.height / 2) + scrollTop
-                    : (childRect.top - wrapperRect.top) + scrollTop;
+                    ? (childRect.top - wrapperRect.top) + (childRect.height / 2)
+                    : (childRect.top - wrapperRect.top);
 
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 if (isHorizontal) {
