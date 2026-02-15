@@ -98,7 +98,8 @@ export class TreeViewController {
     }
 
     shouldDrawLines() {
-        return (this.layoutVariant || 'top-down') === 'top-down';
+        const layout = this.layoutVariant || 'top-down';
+        return layout === 'top-down' || layout === 'horizontal';
     }
 
     getVariantCssPath() {
@@ -462,6 +463,7 @@ export class TreeViewController {
         const $content = $('#chat_tree_content');
         const scrollLeft = $content.scrollLeft();
         const scrollTop = $content.scrollTop();
+        const isHorizontal = (this.layoutVariant || 'top-down') === 'horizontal';
 
         $('.tree-node').each((_, el) => {
             const $node = $(el);
@@ -470,22 +472,33 @@ export class TreeViewController {
 
             if ($childrenContainer.length > 0 && $childrenContainer.is(':visible')) {
                 const startRect = $node[0].getBoundingClientRect();
-
-                const x1 = (startRect.left - wrapperRect.left) + (startRect.width / 2) + scrollLeft;
-                const y1 = (startRect.top - wrapperRect.top) + startRect.height + scrollTop;
+                const x1 = isHorizontal
+                    ? (startRect.right - wrapperRect.left) + scrollLeft
+                    : (startRect.left - wrapperRect.left) + (startRect.width / 2) + scrollLeft;
+                const y1 = isHorizontal
+                    ? (startRect.top - wrapperRect.top) + (startRect.height / 2) + scrollTop
+                    : (startRect.top - wrapperRect.top) + startRect.height + scrollTop;
 
                 $childrenContainer.children('.tree-branch').each((_, childBranch) => {
                     const $childNode = $(childBranch).children('.tree-entry').children('.tree-node');
                     if (!$childNode.length) return;
                     const childRect = $childNode[0].getBoundingClientRect();
 
-                    const x2 = (childRect.left - wrapperRect.left) + (childRect.width / 2) + scrollLeft;
-                    const y2 = (childRect.top - wrapperRect.top) + scrollTop;
+                    const x2 = isHorizontal
+                        ? (childRect.left - wrapperRect.left) + scrollLeft
+                        : (childRect.left - wrapperRect.left) + (childRect.width / 2) + scrollLeft;
+                    const y2 = isHorizontal
+                        ? (childRect.top - wrapperRect.top) + (childRect.height / 2) + scrollTop
+                        : (childRect.top - wrapperRect.top) + scrollTop;
 
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    const cY = (y1 + y2) / 2;
-                    
-                    path.setAttribute('d', `M${x1},${y1} C${x1},${cY} ${x2},${cY} ${x2},${y2}`);
+                    if (isHorizontal) {
+                        const cX = (x1 + x2) / 2;
+                        path.setAttribute('d', `M${x1},${y1} C${cX},${y1} ${cX},${y2} ${x2},${y2}`);
+                    } else {
+                        const cY = (y1 + y2) / 2;
+                        path.setAttribute('d', `M${x1},${y1} C${x1},${cY} ${x2},${cY} ${x2},${y2}`);
+                    }
                     path.setAttribute('stroke', '#666');
                     path.setAttribute('fill', 'none');
                     path.setAttribute('stroke-width', '2');

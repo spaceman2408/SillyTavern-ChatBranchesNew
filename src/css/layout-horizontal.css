@@ -3,10 +3,6 @@
     padding: 24px 28px;
 }
 
-.family-tree-wrapper.tree-layout-horizontal #chat_tree_lines {
-    display: none;
-}
-
 .family-tree-wrapper.tree-layout-horizontal .family-tree-inner {
     display: block;
 }
@@ -52,6 +48,5 @@
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-children {
-    border-left: 1px dashed rgba(255, 255, 255, 0.15);
     padding-left: 14px;
 }
