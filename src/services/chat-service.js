@@ -10,9 +10,10 @@ async function fetchJson(url, init = {}) {
 }
 
 export class ChatService {
-    async saveBranchChat({ chatName, metadata, mesId }) {
+    async saveBranchChat() {
         const { ctx } = ctxSnapshot();
-        await ctx.saveChat({ chatName, withMetadata: metadata, mesId });
+        // ST context API currently exposes saveChat() with no arguments.
+        await ctx.saveChat();
     }
 
     async openChat(chatName) {

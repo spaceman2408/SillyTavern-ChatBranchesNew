@@ -1,7 +1,28 @@
-# NOTE
-While you are free to use this extension however you see fit, I originally made it for personal use, so it may be buggy or may not work for you. At the moment, it's not something I plan to release officially. However, if you do use it and find issues, feel free to reach out to me. Otherwise, you are welcome to fork and modify it as needed, just don't forget the plugin as well.
+<p align="center">
+  <img src="./logo.svg" alt="Chat Branches logo" width="760" />
+</p>
 
-To set expectations: this was 100% vibe-coded using Kiro and Claude Opus.
+## Table of Contents
+
+- [What You Get](#what-you-get)
+- [Main Features](#main-features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Extension](#extension)
+- [Server Plugin](#server-plugin)
+- [How to Use](#how-to-use)
+- [Settings](#settings)
+- [Notes](#notes)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [Plugin not detected](#plugin-not-detected)
+- [Tree missing expected branches](#tree-missing-expected-branches)
+- [Rename failed](#rename-failed)
+
+# NOTE
+While you are free to use this extension however you see fit, I originally made it for personal use, so it may be buggy or may not work for you. At the moment, it's not something I plan to release officially In ST cord. However, if you do use it and find issues, feel free to reach out to me. Otherwise, you are welcome to fork and modify it as needed, just don't forget the plugin as well.
+
+To set expectations: this was 100% vibe-coded using Kiro and ~~Claude Opus~~ Rewrite was done with Codex 5.3. In this rewrite, I use SillyTavern's `getContext()` as the primary runtime interface, so extension behavior comes from context APIs/events rather than older direct imports.
 
 > Currently DOES NOT support group chats
 
@@ -49,18 +70,26 @@ If the plugin is not detected, tree actions and rebuild are disabled until it is
 ## Installation
 
 ### Extension
-1. Or install from inside SillyTavern:
+1. Install from inside SillyTavern:
 **Extensions -> Install Extension -> paste repo link**
 `https://github.com/spaceman2408/SillyTavern-ChatBranchesNew`
-2. Install with folder method:
+2. Or download and install with folder method:
 `public/scripts/extensions/third-party/SillyTavern-ChatBranchesNew`
-3. Restart SillyTavern (or reload extensions/page)
-4. Enable **Chat Branches** in Extensions settings
+3. Delete old Chat Branches extension if you have it installed to avoid conflicts
+4. Restart SillyTavern (or reload extensions/page)
+5. Enable **Chat Branches** in Extensions settings (if not already enabled)
 
 ### Server Plugin
-1. Install `chat-branches-plugin`
-2. Restart SillyTavern server
+1. Install `chat-branches-plugin` by visiting its [repo](https://github.com/spaceman2408/chat-branches-plugin) and following the instructions
+2. Restart SillyTavern server (you must restart the console not refresh the browser)
 3. The extension will auto-detect plugin availability and enable controls
+
+## How to Use
+
+You can find the Chat Branches button in two places: 
+  - In the character actions toolbar (next to the `Create Branch` button)
+  - In the options menu (Hamburger icon) below `Manage Chat Files`
+
 
 ## Settings
 
