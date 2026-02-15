@@ -431,43 +431,6 @@
     width: 100%;
 }
 
-/* ==========================================================================
-   CHECKPOINT WARNING
-   ========================================================================== */
-.chat-tree-checkpoint-warning {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 40px;
-    text-align: center;
-}
-
-.checkpoint-warning-icon {
-    color: var(--tree-accent);
-    margin-bottom: 24px;
-    opacity: 0.8;
-}
-
-.chat-tree-checkpoint-warning h3 {
-    margin: 0 0 16px 0;
-    color: var(--tree-text);
-    font-size: 24px;
-}
-
-.chat-tree-checkpoint-warning p {
-    margin: 0 0 12px 0;
-    color: var(--tree-text);
-    font-size: 14px;
-    opacity: 0.8;
-    max-width: 400px;
-}
-
-.checkpoint-warning-actions {
-    margin-top: 32px;
-}
-
 .chat-tree-button {
     display: flex;
     align-items: center;
