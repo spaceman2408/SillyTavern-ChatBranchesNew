@@ -40,6 +40,7 @@ function treeDependencies() {
         openCharacterChat: snapshot.ctx.openCharacterChat,
         extensionName: `${EXTENSION_NAME}New`,
         pluginBaseUrl: PLUGIN_BASE_URL,
+        pluginClient,
         selected_group: snapshot.groupId,
         chat: snapshot.chat,
         saveChat: snapshot.ctx.saveChat,

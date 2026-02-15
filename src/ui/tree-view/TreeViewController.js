@@ -1,6 +1,13 @@
 import { ContextMenu } from './ContextMenu.js';
 import { MessageViewerPopup } from './MessageViewerPopup.js';
 import { ChatRenameHandler } from './ChatRenameHandler.js';
+import { drawTreeLines } from './treeLineDrawer.js';
+import { collectExpandedPathIds, buildTreeModel, findCurrentNode, isolateTreeForNode } from './treeModel.js';
+import { ensureTreeStylesLoaded } from './treeLayout.js';
+import { bindTreeEvents, bindTreePanning, unbindTreeEvents } from './treeEvents.js';
+import { buildTreeMarkup, loadingMarkup, renderNodeRecursive, renderRenameInput } from './treeRender.js';
+import { cancelRenameFlow, confirmRenameFlow, startRenameFlow } from './treeRenameFlow.js';
+import { handleRootChange as handleRootChangeSelection, populateRootDropdown as populateRoots } from './treeRootSelector.js';
 
 /**
  * Check if a chat is a checkpoint (bookmark)
@@ -20,6 +27,7 @@ export class TreeViewController {
         this.openCharacterChat = dependencies.openCharacterChat;
         this.extensionName = dependencies.extensionName;
         this.pluginBaseUrl = dependencies.pluginBaseUrl;
+        this.pluginClient = dependencies.pluginClient;
         this.selected_group = dependencies.selected_group;
         this.chat_metadata = dependencies.chat_metadata;  // Add chat_metadata reference
         this.layoutVariant = dependencies.layoutVariant || 'top-down';
@@ -78,6 +86,9 @@ export class TreeViewController {
         if (dependencies.pluginBaseUrl) {
             this.pluginBaseUrl = dependencies.pluginBaseUrl;
         }
+        if (dependencies.pluginClient) {
+            this.pluginClient = dependencies.pluginClient;
+        }
         if (dependencies.selected_group !== undefined) {
             this.selected_group = dependencies.selected_group;
         }
@@ -90,48 +101,8 @@ export class TreeViewController {
         this.renameHandler.updateDependencies(dependencies);
     }
 
-    getLayoutClass() {
-        const layout = this.layoutVariant || 'top-down';
-        if (layout === 'horizontal') return 'tree-layout-horizontal';
-        if (layout === 'list') return 'tree-layout-list';
-        return 'tree-layout-top-down';
-    }
-
-    shouldDrawLines() {
-        const layout = this.layoutVariant || 'top-down';
-        return layout === 'top-down' || layout === 'horizontal';
-    }
-
-    getVariantCssPath() {
-        const safeLayout = ['top-down', 'horizontal', 'list'].includes(this.layoutVariant)
-            ? this.layoutVariant
-            : 'top-down';
-        return `/scripts/extensions/third-party/${this.extensionName}/src/css/layout-${safeLayout}.css`;
-    }
-
-    ensureTreeStylesLoaded() {
-        const baseHref = `/scripts/extensions/third-party/${this.extensionName}/src/css/chat-tree-base.css`;
-        const variantHref = this.getVariantCssPath();
-
-        let baseLink = $('#chat-tree-base-styles');
-        if (!baseLink.length) {
-            $('head').append(`<link id="chat-tree-base-styles" rel="stylesheet" href="${baseHref}">`);
-            baseLink = $('#chat-tree-base-styles');
-        } else {
-            baseLink.attr('href', baseHref);
-        }
-
-        let variantLink = $('#chat-tree-layout-styles');
-        if (!variantLink.length) {
-            $('head').append(`<link id="chat-tree-layout-styles" rel="stylesheet" href="${variantHref}">`);
-            variantLink = $('#chat-tree-layout-styles');
-        } else {
-            variantLink.attr('href', variantHref);
-        }
-    }
-
     applyLayoutVariant() {
-        this.ensureTreeStylesLoaded();
+        ensureTreeStylesLoaded(this.extensionName, this.layoutVariant);
         if ($('#chat_tree_overlay').length) {
             if (this.treeRoots.length > 0) {
                 this.render();
@@ -189,11 +160,7 @@ export class TreeViewController {
             }
 
             const treeData = await this.fetchTreeFromPlugin(characterId);
-            
-            this.buildNodeMapFromTree(treeData);
-            this.findCurrentNode();
-            this.isolateActiveTree();
-            this.expandActivePath();
+            this.applyTreeModel(treeData);
             this.populateRootDropdown();
             this.render();
             this.centerOnActive();
@@ -206,164 +173,28 @@ export class TreeViewController {
     }
 
     async fetchTreeFromPlugin(characterId) {
-        const response = await fetch(`${this.pluginBaseUrl}/tree/${characterId}`, {
-            headers: {
-                'X-CSRF-Token': this.token
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Plugin request failed: ${response.status}`);
+        if (!this.pluginClient) {
+            throw new Error('Plugin client is not available');
         }
-
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Plugin returned error');
-        }
-
-        return data.tree;
+        return this.pluginClient.getTree(characterId, { force: true });
     }
 
-    buildNodeMapFromTree(treeArray) {
-        this.nodeMap.clear();
-        
-        // Recursively process tree structure from plugin
-        const processNode = (node, parent = null) => {
-            // Create our internal node structure
-            const internalNode = {
-                id: node.uuid,
-                name: node.chat_name,
-                parentId: node.parent_uuid,
-                children: [],
-                data: node,
-                parent: parent
-            };
+    applyTreeModel(treeData) {
+        const { nodeMap, allTreeRoots } = buildTreeModel(treeData);
+        this.nodeMap = nodeMap;
+        this.allTreeRoots = allTreeRoots;
 
-            this.nodeMap.set(node.uuid, internalNode);
-
-            // Process children
-            if (node.children && node.children.length > 0) {
-                node.children.forEach(child => {
-                    const childNode = processNode(child, internalNode);
-                    internalNode.children.push(childNode);
-                });
-            }
-
-            return internalNode;
-        };
-
-        // Process all root nodes
-        this.allTreeRoots = treeArray.map(root => processNode(root));
-        // Deduplicate roots by UUID to prevent duplicate dropdown entries
-        this.allTreeRoots = this.allTreeRoots.filter((root, index, self) =>
-            self.findIndex(r => r.id === root.id) === index
-        );
-        this.treeRoots = [...this.allTreeRoots];
-    }
-
-    findCurrentNode() {
-        this.currentNode = null;
-
-        // First priority: Find by UUID (most reliable, survives renames)
-        if (this.currentChatUUID) {
-            const nodeByUUID = this.nodeMap.get(this.currentChatUUID);
-            if (nodeByUUID) {
-                this.currentNode = nodeByUUID;
-                console.log('[Chat Branches] Found current node by UUID:', this.currentChatUUID, '->', nodeByUUID.name);
-                return;
-            } else {
-                console.warn('[Chat Branches] UUID not found in tree:', this.currentChatUUID);
-            }
+        this.currentNode = findCurrentNode(this.nodeMap, this.currentChatUUID, this.currentChatFile);
+        if (!this.currentNode && this.nodeMap.size > 0) {
+            this.currentNode = this.nodeMap.values().next().value;
         }
 
-        // Fallback: Try to find by exact name match
-        for (const [uuid, node] of this.nodeMap) {
-            if (node.name === this.currentChatFile) {
-                this.currentNode = node;
-                console.log('[Chat Branches] Found current node by name match:', this.currentChatFile);
-                return;
-            }
-        }
+        const { currentRootNode, treeRoots } = isolateTreeForNode(this.currentNode, this.allTreeRoots);
+        this.currentRootNode = currentRootNode;
+        this.treeRoots = treeRoots;
 
-        // If still not found, try case-insensitive match
-        if (!this.currentNode) {
-            const currentFileLower = this.currentChatFile.toLowerCase().trim();
-            
-            for (const [uuid, node] of this.nodeMap) {
-                const nodeNameLower = node.name.toLowerCase().trim();
-                
-                // Case-insensitive match
-                if (nodeNameLower === currentFileLower) {
-                    this.currentNode = node;
-                    console.log('[Chat Branches] Found current node with case-insensitive match:', this.currentChatFile);
-                    return;
-                }
-            }
-        }
-
-        // Final fallback: Try partial match only if we still haven't found anything
-        // This is less reliable and should rarely be needed
-        if (!this.currentNode) {
-            const currentFileLower = this.currentChatFile.toLowerCase().trim();
-            
-            for (const [uuid, node] of this.nodeMap) {
-                const nodeNameLower = node.name.toLowerCase().trim();
-                
-                // Try partial match (for cases where file extensions might differ)
-                if (nodeNameLower.includes(currentFileLower) || currentFileLower.includes(nodeNameLower)) {
-                    this.currentNode = node;
-                    console.warn('[Chat Branches] Found current node with PARTIAL match:', this.currentChatFile, '->', node.name);
-                    break;
-                }
-            }
-        }
-
-        // If still not found, log warning with helpful info
-        if (!this.currentNode) {
-            console.warn('[Chat Branches] Current chat not found in tree:', this.currentChatFile);
-            if (this.currentChatUUID) {
-                console.warn('[Chat Branches] Current chat UUID:', this.currentChatUUID);
-            }
-            console.warn('[Chat Branches] Available nodes in tree:', Array.from(this.nodeMap.values()).map(n => n.name));
-            
-            // Set the first node as fallback to prevent empty tree display
-            if (this.nodeMap.size > 0) {
-                const firstNode = this.nodeMap.values().next().value;
-                console.warn('[Chat Branches] Falling back to first node:', firstNode.name);
-                this.currentNode = firstNode;
-            }
-        }
-    }
-
-    isolateActiveTree() {
-        if (!this.currentNode) {
-            // If current chat not found, show all trees
-            this.treeRoots = [...this.allTreeRoots];
-            return;
-        }
-
-        // Climb to root
-        let root = this.currentNode;
-        while (root.parent) {
-            root = root.parent;
-        }
-
-        // Set current root and only show this tree
-        this.currentRootNode = root;
-        this.treeRoots = [root];
-    }
-
-    expandActivePath() {
-        if (!this.currentNode) return;
-
-        let curr = this.currentNode;
-        while (curr) {
-            if (curr.parent) {
-                this.expandedUUIDs.add(curr.parent.id);
-            }
-            curr = curr.parent;
-        }
+        const activePath = collectExpandedPathIds(this.currentNode);
+        activePath.forEach((id) => this.expandedUUIDs.add(id));
     }
 
     // =========================================================================
@@ -372,164 +203,24 @@ export class TreeViewController {
 
     render() {
         const $container = $('#chat_tree_content');
-        $container.empty();
-
+        $container.html(buildTreeMarkup(this));
         if (this.treeRoots.length === 0) {
-            $container.html('<div class="chat-tree-empty">No connected chat history found.</div>');
             return;
         }
-
-        const treeHtml = `
-            <div class="family-tree-wrapper ${this.getLayoutClass()}">
-                <svg id="chat_tree_lines"></svg>
-                <div class="family-tree-inner">
-                    ${this.treeRoots.map(root => this.renderNodeRecursive(root, 0)).join('')}
-                </div>
-            </div>
-        `;
-
-        $container.html(treeHtml);
         this.drawLines();
         this.bindEvents();
     }
 
     renderNodeRecursive(node, level) {
-        // Use UUID for active detection, but also check name as fallback
-        const isActiveByUUID = this.currentChatUUID && node.id === this.currentChatUUID;
-        const isActiveByName = node.name === this.currentChatFile;
-        const isActive = isActiveByUUID || isActiveByName;
-        
-        const isExpanded = this.expandedUUIDs.has(node.id);
-        const hasChildren = node.children && node.children.length > 0;
-        const isRenaming = this.isRenaming && this.renameNode?.id === node.id;
-        
-        // Truncate name
-        const displayLabel = node.name.length > 15 ? node.name.substring(0, 15) + '...' : node.name;
-        const msgCount = node.data.message_count || node.data.chat_items || node.data.branch_point || 0;
-
-        return `
-            <div class="tree-branch">
-                <div class="tree-entry">
-                    <div class="tree-node ${isActive ? 'active-node' : ''} ${isRenaming ? 'renaming' : ''}"
-                        data-uuid="${node.id}"
-                        data-name="${node.name}"
-                        title="${node.name}${msgCount ? ` (Branch at msg ${msgCount})` : ''}">
-                        
-                        <div class="node-content">
-                            <span class="node-icon"><i class="fa-solid fa-message"></i></span>
-                            ${isRenaming ? this.renderRenameInput(node) : `
-                                <span class="node-label">${displayLabel}</span>
-                                <span class="rename-icon" data-uuid="${node.id}" title="Rename chat">
-                                    <i class="fa-solid fa-pencil"></i>
-                                </span>
-                            `}
-                        </div>
-
-                        ${hasChildren ? `
-                            <div class="expand-toggle ${isExpanded ? 'open' : ''}">
-                                <i class="fa-solid ${isExpanded ? 'fa-minus' : 'fa-plus'}"></i>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-
-                ${(hasChildren && isExpanded) ? `
-                    <div class="tree-children">
-                        ${node.children.map(child => this.renderNodeRecursive(child, level + 1)).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
+        return renderNodeRecursive(this, node, level);
     }
 
     drawLines() {
-        const $svg = $('#chat_tree_lines');
-        const $wrapper = $('.family-tree-wrapper');
-
-        if (!$svg.length || !$wrapper.length) return;
-
-        if (!this.shouldDrawLines()) {
-            $svg.empty();
-            $svg.hide();
-            return;
-        }
-
-        $svg.show();
-        $svg.attr('width', $wrapper[0].scrollWidth);
-        $svg.attr('height', $wrapper[0].scrollHeight);
-        $svg.empty();
-
-        const wrapperRect = $wrapper[0].getBoundingClientRect();
-        const $content = $('#chat_tree_content');
-        const scrollLeft = $content.scrollLeft();
-        const scrollTop = $content.scrollTop();
-        const isHorizontal = (this.layoutVariant || 'top-down') === 'horizontal';
-
-        $('.tree-node').each((_, el) => {
-            const $node = $(el);
-            const $parentBranch = $node.closest('.tree-branch');
-            const $childrenContainer = $parentBranch.children('.tree-children');
-
-            if ($childrenContainer.length > 0 && $childrenContainer.is(':visible')) {
-                const startRect = $node[0].getBoundingClientRect();
-                const x1 = isHorizontal
-                    ? (startRect.right - wrapperRect.left) + scrollLeft
-                    : (startRect.left - wrapperRect.left) + (startRect.width / 2) + scrollLeft;
-                const y1 = isHorizontal
-                    ? (startRect.top - wrapperRect.top) + (startRect.height / 2) + scrollTop
-                    : (startRect.top - wrapperRect.top) + startRect.height + scrollTop;
-
-                $childrenContainer.children('.tree-branch').each((_, childBranch) => {
-                    const $childNode = $(childBranch).children('.tree-entry').children('.tree-node');
-                    if (!$childNode.length) return;
-                    const childRect = $childNode[0].getBoundingClientRect();
-
-                    const x2 = isHorizontal
-                        ? (childRect.left - wrapperRect.left) + scrollLeft
-                        : (childRect.left - wrapperRect.left) + (childRect.width / 2) + scrollLeft;
-                    const y2 = isHorizontal
-                        ? (childRect.top - wrapperRect.top) + (childRect.height / 2) + scrollTop
-                        : (childRect.top - wrapperRect.top) + scrollTop;
-
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    if (isHorizontal) {
-                        const cX = (x1 + x2) / 2;
-                        path.setAttribute('d', `M${x1},${y1} C${cX},${y1} ${cX},${y2} ${x2},${y2}`);
-                    } else {
-                        const cY = (y1 + y2) / 2;
-                        path.setAttribute('d', `M${x1},${y1} C${x1},${cY} ${x2},${cY} ${x2},${y2}`);
-                    }
-                    path.setAttribute('stroke', '#666');
-                    path.setAttribute('fill', 'none');
-                    path.setAttribute('stroke-width', '2');
-                    
-                    $svg.append(path);
-                });
-            }
-        });
+        drawTreeLines(this.layoutVariant);
     }
 
     renderRenameInput(node) {
-        return `
-            <div class="rename-input-container">
-                <input type="text"
-                    class="rename-input"
-                    value="${node.name}"
-                    data-uuid="${node.id}"
-                    maxlength="255"
-                    placeholder="Enter new name"
-                    autocomplete="off"
-                    spellcheck="false">
-                <div class="rename-actions">
-                    <button class="rename-confirm" data-uuid="${node.id}" title="Confirm">
-                        <i class="fa-solid fa-check"></i>
-                    </button>
-                    <button class="rename-cancel" data-uuid="${node.id}" title="Cancel">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+        return renderRenameInput(node);
     }
 
     // =========================================================================
@@ -537,281 +228,7 @@ export class TreeViewController {
     // =========================================================================
 
     bindEvents() {
-        const self = this;
-
-        // Bind panning first
-        this.bindPanning();
-
-        // Use event delegation and remove old handlers first
-        $('#chat_tree_content').off('click.expandToggle', '.expand-toggle')
-                            .off('touchend.expandToggleTouch', '.expand-toggle')
-                            .off('dblclick.treeNodeDblclick', '.tree-node')
-                            .off('contextmenu.chatTree')
-                            .off('click.renameIcon', '.rename-icon')
-                            .off('keydown.renameInput', '.rename-input')
-                            .off('click.renameConfirm', '.rename-confirm')
-                            .off('click.renameCancel', '.rename-cancel');
-        $(document).off('click.renameOutside');
-        
-        $('#chat_tree_content').on('dblclick.treeNodeDblclick', '.tree-node', async function(e) {
-            e.stopPropagation();
-            
-            // Prevent multiple simultaneous swaps
-            if (self.isSwappingChat) {
-                console.log('[Chat Branches] Chat swap already in progress, ignoring double-click');
-                return;
-            }
-            
-            const name = $(this).data('name');
-            
-            if (name === self.currentChatFile) return;
-
-            $(this).addClass('loading-node');
-            await self.swapChat(name);
-        });
-
-        // Handle pencil icon click
-        $('#chat_tree_content').on('click.renameIcon', '.rename-icon', function(e) {
-            e.stopPropagation();
-            const uuid = $(this).data('uuid');
-            self.startRename(uuid);
-        });
-
-        // Handle rename input interactions
-        $('#chat_tree_content').on('keydown.renameInput', '.rename-input', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const uuid = $(this).data('uuid');
-                const newName = $(this).val().trim();
-                self.confirmRename(uuid, newName);
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                self.cancelRename();
-            }
-        });
-
-        // Handle confirm button click
-        $('#chat_tree_content').on('click.renameConfirm', '.rename-confirm', function(e) {
-            e.stopPropagation();
-            const uuid = $(this).data('uuid');
-            const $input = $(`.rename-input[data-uuid="${uuid}"]`);
-            const newName = String($input.val()).trim();
-            self.confirmRename(uuid, newName);
-        });
-
-        // Handle cancel button click
-        $('#chat_tree_content').on('click.renameCancel', '.rename-cancel', function(e) {
-            e.stopPropagation();
-            self.cancelRename();
-        });
-
-        // Handle click outside to cancel
-        $(document).on('click.renameOutside', function(e) {
-            if (self.isRenaming && !$(e.target).closest('.rename-input-container').length) {
-                self.cancelRename();
-            }
-        });
-
-        // Long-press detection for mobile context menu
-        let longPressTimer = null;
-        let touchStartTime = 0;
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let lastTapTime = 0;
-        let lastTapTarget = null;
-        const LONG_PRESS_DURATION = 500; // ms
-        const TAP_THRESHOLD = 10; // pixels - max movement to be considered a tap
-        const TAP_DURATION = 300; // ms - max duration to be considered a tap
-        const DOUBLE_TAP_DELAY = 300; // ms - max time between taps for double-tap
-
-        $('#chat_tree_content').on('touchstart.chatTree', '.tree-node', function(e) {
-            // Don't trigger long-press if touching the expand/collapse toggle
-            if ($(e.target).closest('.expand-toggle').length) {
-                return;
-            }
-            
-            if (e.touches.length === 1) {
-                const $node = $(this);
-                const touch = e.originalEvent.touches[0];
-                
-                touchStartTime = Date.now();
-                touchStartX = touch.clientX;
-                touchStartY = touch.clientY;
-                
-                // Start long-press timer
-                longPressTimer = setTimeout(() => {                 
-                    // Find the closest tree-node
-                    const $treeNode = $node;
-                    const uuid = $treeNode.data('uuid');
-                    const name = $treeNode.data('name');
-                    
-                    // Find the full node object from nodeMap
-                    self.contextMenuNode = self.nodeMap.get(uuid) || { uuid, name };
-                    self.contextMenu.show(touch.clientX, touch.clientY, [
-                        { id: 'view-messages', label: 'View Messages', icon: 'fa-solid fa-comments' }
-                    ]);
-                }, LONG_PRESS_DURATION);
-            }
-        });
-
-        // Long-press detection for blank space
-        $('#chat_tree_content').on('touchstart.chatTreeBlank', function(e) {
-            // Only trigger if not clicking on a tree node or expand toggle
-            if (e.touches.length === 1 && $(e.target).closest('.tree-node, .expand-toggle, .context-menu-option').length === 0) {
-                const touch = e.originalEvent.touches[0];
-                // Start long-press timer
-                longPressTimer = setTimeout(() => {
-                    // Show blank area context menu
-                    self.contextMenuNode = null;
-                    self.contextMenu.show(touch.clientX, touch.clientY, [
-                        { id: 'expand-all', label: 'Expand All Nodes', icon: 'fa-solid fa-expand' },
-                        { id: 'collapse-all', label: 'Collapse All Nodes', icon: 'fa-solid fa-compress' },
-                        { id: 'find-current', label: 'Find Current Node', icon: 'fa-solid fa-crosshairs' }
-                    ]);
-                }, LONG_PRESS_DURATION);
-            }
-        });
-
-        // Handle touch end for nodes - detect double-tap vs long-press
-        $('#chat_tree_content').on('touchend.chatTree', '.tree-node', async function(e) {
-            // Don't process if touching the expand/collapse toggle
-            if ($(e.target).closest('.expand-toggle').length) {
-                return;
-            }
-            
-            const touchDuration = Date.now() - touchStartTime;
-            const touch = e.originalEvent.changedTouches[0];
-            const touchDistance = Math.sqrt(
-                Math.pow(touch.clientX - touchStartX, 2) + 
-                Math.pow(touch.clientY - touchStartY, 2)
-            );
-            
-            // Clear long-press timer
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-            }
-            
-            // Only process valid taps (short duration, minimal movement)
-            if (touchDuration >= TAP_DURATION || touchDistance >= TAP_THRESHOLD) {
-                return;
-            }
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const currentTime = Date.now();
-            const timeSinceLastTap = currentTime - lastTapTime;
-            const $currentTarget = $(this);
-            
-            // Check if this is a double-tap (same target, within delay)
-            if (timeSinceLastTap < DOUBLE_TAP_DELAY && lastTapTarget && 
-                $currentTarget.data('uuid') === $(lastTapTarget).data('uuid')) {
-                // Double-tap detected - navigate to chat
-                lastTapTime = 0;
-                lastTapTarget = null;
-                
-                // Prevent multiple simultaneous swaps
-                if (self.isSwappingChat) {
-                    console.log('[Chat Branches] Chat swap already in progress, ignoring double-tap');
-                    return;
-                }
-                
-                const name = $currentTarget.data('name');
-                
-                if (name === self.currentChatFile) return;
-
-                $currentTarget.addClass('loading-node');
-                await self.swapChat(name);
-            } else {
-                // First tap - store info and wait for potential second tap
-                lastTapTime = currentTime;
-                lastTapTarget = this;
-            }
-        });
-
-        // Cancel long-press on touch move or cancel (for nodes)
-        $('#chat_tree_content').on('touchmove.chatTree touchcancel.chatTree', '.tree-node', function() {
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-            }
-        });
-
-        // Cancel long-press on touch move or end (for blank space)
-        $('#chat_tree_content').on('touchmove.chatTreeBlank touchend.chatTreeBlank touchcancel.chatTreeBlank', function() {
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-            }
-        });
-
-        // Touch support for expand/collapse toggle buttons (+/-)
-        // Use touchend for immediate response on mobile
-        $('#chat_tree_content').on('touchend.expandToggleTouch', '.expand-toggle', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const uuid = $(this).closest('.tree-node').data('uuid');
-            
-            if (self.expandedUUIDs.has(uuid)) {
-                self.expandedUUIDs.delete(uuid);
-            } else {
-                self.expandedUUIDs.add(uuid);
-            }
-            
-            self.render();
-        });
-
-        // Also keep click handler for desktop
-        $('#chat_tree_content').on('click.expandToggle', '.expand-toggle', function(e) {
-            e.stopPropagation();
-            const uuid = $(this).closest('.tree-node').data('uuid');
-            
-            if (self.expandedUUIDs.has(uuid)) {
-                self.expandedUUIDs.delete(uuid);
-            } else {
-                self.expandedUUIDs.add(uuid);
-            }
-            
-            self.render();
-        });
-
-        // Clean up long-press timer on hide
-        this.clearLongPressTimer = function() {
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-            }
-        };
-
-        // Single unified contextmenu handler for both nodes and empty area
-        $('#chat_tree_content').on('contextmenu.chatTree', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Check if clicking on a tree node
-            const $treeNode = $(e.target).closest('.tree-node');
-            if ($treeNode.length > 0) {
-                const uuid = $treeNode.data('uuid');
-                const name = $treeNode.data('name');
-                // Find the full node object from nodeMap
-                self.contextMenuNode = self.nodeMap.get(uuid) || { uuid, name };
-                self.contextMenu.show(e.clientX, e.clientY, [
-                    { id: 'view-messages', label: 'View Messages', icon: 'fa-solid fa-comments' }
-                ]);
-                return;
-            }
-            
-            // Only show empty area menu if not clicking on interactive elements
-            if ($(e.target).closest('.tree-node, .expand-toggle').length === 0) {
-                self.contextMenu.show(e.clientX, e.clientY, [
-                    { id: 'expand-all', label: 'Expand All Nodes', icon: 'fa-solid fa-expand' },
-                    { id: 'collapse-all', label: 'Collapse All Nodes', icon: 'fa-solid fa-compress' },
-                    { id: 'find-current', label: 'Find Current Node', icon: 'fa-solid fa-crosshairs' }
-                ]);
-            }
-        });
+        bindTreeEvents(this);
     }
 
     async swapChat(chatName) {
@@ -880,117 +297,15 @@ export class TreeViewController {
     // =========================================================================
 
     startRename(uuid) {
-        const node = this.nodeMap.get(uuid);
-        if (!node) return;
-
-        this.isRenaming = true;
-        this.renameNode = node;
-        this.render(); // Re-render to show input field
-
-        // Focus and select the input
-        setTimeout(() => {
-            const $input = $(`.rename-input[data-uuid="${uuid}"]`);
-            $input.focus();
-            $input.select();
-        }, 50);
+        startRenameFlow(this, uuid);
     }
 
     async confirmRename(uuid, newName) {
-        if (!this.isRenaming || !this.renameNode) return;
-
-        const node = this.nodeMap.get(uuid);
-        if (!node) return;
-
-        // Check if name hasn't changed
-        if (newName === node.name) {
-            toastr.info('Chat name unchanged');
-            this.cancelRename();
-            return;
-        }
-
-        // Validate name
-        const validation = this.renameHandler.validateName(newName, this.treeRoots, uuid);
-        if (!validation.valid) {
-            toastr.error(validation.error, 'Rename Failed');
-            return;
-        }
-
-        // Show loading state
-        const $input = $(`.rename-input[data-uuid="${uuid}"]`);
-        $input.prop('disabled', true);
-
-        try {
-            const oldName = node.name;
-            
-            // Use UUID for active chat detection instead of name (more reliable)
-            const wasActiveChat = this.currentChatUUID === uuid;
-            
-            // Perform rename (this updates both plugin and file system)
-            await this.renameHandler.performRename(uuid, oldName, newName);
-            
-            // Clear rename state before reloading
-            this.isRenaming = false;
-            this.renameNode = null;
-            
-            // If we renamed the active chat, we need to update state and reload
-            if (wasActiveChat) {
-                console.log('[Chat Branches] Renamed active chat from:', oldName, 'to:', newName);
-                
-                console.log('[Chat Branches] Calling openCharacterChat with:', newName);
-                
-                // Reload the chat with the new name to sync SillyTavern's state
-                try {
-                    await this.openCharacterChat(newName);
-                    console.log('[Chat Branches] openCharacterChat completed');
-                } catch (error) {
-                    console.error('[Chat Branches] openCharacterChat failed:', error);
-                }
-                
-                // CRITICAL: Wait for SillyTavern to fully process the chat change
-                // openCharacterChat calls getChat() which loads chat_metadata from the server
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
-                // NOW update our state from the reloaded data
-                // Use the global chat_metadata which was updated by getChat()
-                this.currentChatFile = String(this.characters[this.this_chid]?.chat || newName);
-                this.currentChatUUID = this.chat_metadata?.uuid || uuid;
-                
-                console.log('[Chat Branches] Final state - currentChatFile:', this.currentChatFile, 'UUID:', this.currentChatUUID);
-                console.log('[Chat Branches] Global chat_metadata.uuid:', this.chat_metadata?.uuid);
-                
-                // Add another delay to ensure plugin has updated the tree
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
-            
-            // Refresh tree after everything is updated
-            await this.loadAndBuildTree();
-            
-            toastr.success('Chat renamed successfully');
-        } catch (error) {
-            console.error('[Chat Branches] Rename failed:', error);
-            // Keep the rename input open on error so user can correct the name
-            toastr.error(error.message || 'Failed to rename chat', 'Rename Failed');
-            $input.prop('disabled', false);
-            $input.focus();
-            // Don't reset rename state on validation errors - let user try again
-            // Only reset if it's a non-validation error (like server down)
-            if (error.message?.includes('Plugin request failed') ||
-                error.message?.includes('Network error') ||
-                error.message?.includes('Failed to fetch')) {
-                this.isRenaming = false;
-                this.renameNode = null;
-                this.render();
-            }
-            return;
-        }
+        await confirmRenameFlow(this, uuid, newName);
     }
 
     cancelRename() {
-        if (!this.isRenaming) return;
-        
-        this.isRenaming = false;
-        this.renameNode = null;
-        this.render();
+        cancelRenameFlow(this);
     }
 
     // =========================================================================
@@ -998,52 +313,11 @@ export class TreeViewController {
     // =========================================================================
 
     populateRootDropdown() {
-        const $dropdown = $('#chat_tree_root_dropdown');
-        $dropdown.empty();
-
-        // Hide dropdown if only one or no root exists
-        if (this.allTreeRoots.length <= 1) {
-            $dropdown.parent().hide();
-            return;
-        }
-
-        $dropdown.parent().show();
-
-        // Add options for each root
-        this.allTreeRoots.forEach(root => {
-            const displayName = root.name.length > 30 ? root.name.substring(0, 30) + '...' : root.name;
-            const $option = $('<option>')
-                .val(root.id)
-                .text(displayName)
-                .attr('title', root.name);
-            
-            // Mark as selected if this is the current root
-            if (this.currentRootNode && root.id === this.currentRootNode.id) {
-                $option.prop('selected', true);
-            }
-            
-            $dropdown.append($option);
-        });
+        populateRoots(this);
     }
 
     async handleRootChange(rootUUID) {
-        const selectedRoot = this.allTreeRoots.find(root => root.id === rootUUID);
-        
-        if (!selectedRoot) {
-            console.error('[Chat Branches] Root not found:', rootUUID);
-            return;
-        }
-
-        // Don't switch if already on this root
-        if (this.currentRootNode && selectedRoot.id === this.currentRootNode.id) {
-            return;
-        }
-
-        // Update current root
-        this.currentRootNode = selectedRoot;
-
-        // Switch to the root's chat
-        await this.swapChat(selectedRoot.name);
+        await handleRootChangeSelection(this, rootUUID);
     }
 
     // =========================================================================
@@ -1073,35 +347,25 @@ export class TreeViewController {
             if (chatExists) return true;
         }
 
-        // Method 2: Check via the plugin's tree data (more reliable)
+        // Method 2: Check via plugin tree service (more reliable)
         try {
-            const characterId = character.avatar;
-            const response = await fetch(`${this.pluginBaseUrl}/tree/${characterId}`, {
-                headers: {
-                    'X-CSRF-Token': this.token
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.tree) {
-                    // Search for the chat in the tree
-                    const findChatInTree = (nodes) => {
-                        for (const node of nodes) {
-                            if (node.chat_name === chatName) {
+            if (this.pluginClient) {
+                const characterId = character.avatar;
+                const tree = await this.pluginClient.getTree(characterId, { force: true });
+                const findChatInTree = (nodes) => {
+                    for (const node of nodes) {
+                        if (node.chat_name === chatName) {
+                            return true;
+                        }
+                        if (node.children && node.children.length > 0) {
+                            if (findChatInTree(node.children)) {
                                 return true;
                             }
-                            if (node.children && node.children.length > 0) {
-                                if (findChatInTree(node.children)) {
-                                    return true;
-                                }
-                            }
                         }
-                        return false;
-                    };
-                    
-                    return findChatInTree(data.tree);
-                }
+                    }
+                    return false;
+                };
+                return findChatInTree(tree || []);
             }
         } catch (error) {
             console.error('[Chat Branches] Error verifying chat existence:', error);
@@ -1112,7 +376,7 @@ export class TreeViewController {
 
     async renderModalSkeleton() {
         $('#chat_tree_overlay').remove();
-        this.ensureTreeStylesLoaded();
+        ensureTreeStylesLoaded(this.extensionName, this.layoutVariant);
 
         const html = `
             <div id="chat_tree_overlay">
@@ -1161,13 +425,7 @@ export class TreeViewController {
 
     setLoading(isLoading) {
         if (isLoading) {
-            $('#chat_tree_content').html(`
-                <div class="chat-tree-loading">
-                    <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-                    <div style="margin-top:10px">Loading chat branches...</div>
-                    <div class="chat-tree-loading-text" style="font-size:0.8em; opacity:0.7"></div>
-                </div>
-            `);
+            $('#chat_tree_content').html(loadingMarkup());
         }
     }
 
@@ -1200,24 +458,8 @@ export class TreeViewController {
     }
 
     hide() {
-        // Clear long-press timer
-        if (this.clearLongPressTimer) {
-            this.clearLongPressTimer();
-        }
-        
         $('#chat_tree_overlay').fadeOut(200, function() { $(this).remove(); });
-        $(window).off('resize.chatTree');
-        $(document).off('mousemove.chatTree mouseup.chatTree mouseleave.chatTree');
-        $('#chat_tree_content').off('mousedown.chatTree touchstart.chatTree touchmove.chatTree touchend.chatTree touchcancel.chatTree touchstart.chatTreeBlank touchmove.chatTreeBlank touchend.chatTreeBlank touchcancel.chatTreeBlank touchend.expandToggleTouch');
-        
-        // Clean up rename events
-        $('#chat_tree_content').off('click.renameIcon');
-        $('#chat_tree_content').off('keydown.renameInput');
-        $('#chat_tree_content').off('click.renameConfirm');
-        $('#chat_tree_content').off('click.renameCancel');
-        $(document).off('click.renameOutside');
-        
-        // Cancel any active rename
+        unbindTreeEvents(this);
         this.cancelRename();
     }
 
@@ -1226,35 +468,7 @@ export class TreeViewController {
     // =========================================================================
 
     bindPanning() {
-        const $c = $('#chat_tree_content');
-
-        $c.on('mousedown.chatTree', e => {
-            // Don't pan if clicking on a node, expand button, or other interactive elements
-            if ($(e.target).closest('.tree-node, .expand-toggle, .context-menu-option').length || e.button !== 0) return;
-            e.preventDefault();
-            this.isPanning = true;
-            this.panStart = {
-                x: e.clientX,
-                y: e.clientY,
-                scrollX: $c.scrollLeft(),
-                scrollY: $c.scrollTop()
-            };
-            $c.addClass('panning');
-        });
-
-        $(document).on('mousemove.chatTree', e => {
-            if (!this.isPanning) return;
-            $c.scrollLeft(this.panStart.scrollX - (e.clientX - this.panStart.x));
-            $c.scrollTop(this.panStart.scrollY - (e.clientY - this.panStart.y));
-        });
-
-        $(document).on('mouseup.chatTree mouseleave.chatTree', () => {
-            if (this.isPanning) {
-                this.isPanning = false;
-                this.wasPanning = true; // Mark that we just finished panning
-                $('#chat_tree_content').removeClass('panning');
-            }
-        });
+        bindTreePanning(this);
     }
 }
 
