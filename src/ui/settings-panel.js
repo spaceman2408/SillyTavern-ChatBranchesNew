@@ -34,7 +34,13 @@ export class SettingsPanel {
         });
 
         $(document).off('click.chatBranchesRebuild', '#chat_branches_rebuild');
-        $(document).on('click.chatBranchesRebuild', '#chat_branches_rebuild', () => this.onRebuild());
+        $(document).on('click.chatBranchesRebuild', '#chat_branches_rebuild', () => {
+            if (!this.store.pluginRunning) {
+                toastr.warning('Rebuild is unavailable while the plugin is offline.', 'Plugin Required');
+                return;
+            }
+            this.onRebuild();
+        });
 
         $(document).off('click.chatBranchesInstall', '#chat_branches_install_plugin');
         $(document).on('click.chatBranchesInstall', '#chat_branches_install_plugin', () => this.showInstallPopup());
@@ -45,13 +51,24 @@ export class SettingsPanel {
     refresh() {
         const settings = this.getSettings();
         $('#chat_branches_enabled').prop('checked', Boolean(settings.enabled));
+        const rebuildButton = $('#chat_branches_rebuild');
 
         if (!this.store.pluginRunning) {
             $('#chat_branches_enabled').prop('disabled', true);
             $('#chat_branches_plugin_missing_section').show();
+            rebuildButton
+                .addClass('disabled')
+                .attr('aria-disabled', 'true')
+                .attr('title', 'Rebuild unavailable: plugin is not detected')
+                .attr('data-disabled-title', 'Plugin not detected');
         } else {
             $('#chat_branches_enabled').prop('disabled', false);
             $('#chat_branches_plugin_missing_section').hide();
+            rebuildButton
+                .removeClass('disabled')
+                .attr('aria-disabled', 'false')
+                .attr('title', 'Rebuild storage from chat files')
+                .removeAttr('data-disabled-title');
         }
     }
 

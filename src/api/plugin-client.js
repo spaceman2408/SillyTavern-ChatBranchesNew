@@ -28,16 +28,27 @@ export class PluginClient {
     }
 
     async healthCheck() {
-        try {
-            const response = await withTimeout(fetch(this.baseUrl, { method: 'HEAD' }), 4000);
-            this.store.pluginRunning = response.ok;
-            this.store.pluginCheckedAt = Date.now();
-            return response.ok;
-        } catch {
-            this.store.pluginRunning = false;
-            this.store.pluginCheckedAt = Date.now();
-            return false;
+        const probes = [
+            () => withTimeout(fetch(`${this.baseUrl}/branches`, { method: 'GET' }), 4000),
+            () => withTimeout(fetch(this.baseUrl, { method: 'GET' }), 4000),
+        ];
+
+        for (const probe of probes) {
+            try {
+                const response = await probe();
+                if (response.ok) {
+                    this.store.pluginRunning = true;
+                    this.store.pluginCheckedAt = Date.now();
+                    return true;
+                }
+            } catch {
+                // Try next probe
+            }
         }
+
+        this.store.pluginRunning = false;
+        this.store.pluginCheckedAt = Date.now();
+        return false;
     }
 
     async registerBranch(payload) {

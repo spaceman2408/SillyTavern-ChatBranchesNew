@@ -106,3 +106,18 @@ strong, small {
 #chat_branches_migrate.disabled:hover::after {
     opacity: 1;
 }
+
+/* Rebuild button disabled state when plugin is offline */
+#chat_branches_rebuild.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    background-color: #2d2d2d;
+    border-color: #444;
+    color: #888;
+}
+
+#chat_branches_rebuild.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
