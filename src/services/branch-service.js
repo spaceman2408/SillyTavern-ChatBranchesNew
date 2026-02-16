@@ -15,44 +15,69 @@ export class BranchService {
         return !snapshot.groupId && snapshot.characterId !== undefined && snapshot.character;
     }
 
+    getContextKey(snapshot) {
+        return {
+            groupId: snapshot.groupId ?? null,
+            characterId: snapshot.characterId ?? null,
+            chatId: snapshot.chatId ?? null,
+        };
+    }
+
+    isSameContext(key) {
+        const current = ctxSnapshot();
+        return (
+            (current.groupId ?? null) === key.groupId &&
+            (current.characterId ?? null) === key.characterId &&
+            (current.chatId ?? null) === key.chatId
+        );
+    }
+
     async ensureChatUUID() {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot)) return;
         if (!this.getSettings()?.enabled || !snapshot.chatMetadata) return;
         if (isCheckpointChat(snapshot.chatName)) return;
+        const contextKey = this.getContextKey(snapshot);
+        const characterId = snapshot.character?.avatar || null;
+        const chatName = snapshot.chatName || 'Unknown';
 
         let isNewChat = false;
         if (!snapshot.chatMetadata.uuid) {
-            const characterId = snapshot.character?.avatar || null;
-            const chatName = snapshot.chatName || 'Unknown';
-
             const candidates = await this.pluginClient.queryByChatName(chatName).catch(() => []);
+            if (!this.isSameContext(contextKey)) return;
+
+            const current = ctxSnapshot();
+            if (!this.isCharacterChatContext(current) || !current.chatMetadata) return;
             const existing = candidates.find((branch) => branch.character_id === characterId && branch.chat_name === chatName);
             if (existing) {
-                snapshot.chatMetadata.uuid = existing.uuid;
-                snapshot.chatMetadata.root_uuid = existing.root_uuid;
-                snapshot.chatMetadata.parent_uuid = existing.parent_uuid;
-                await snapshot.ctx.saveMetadata();
+                current.chatMetadata.uuid = existing.uuid;
+                current.chatMetadata.root_uuid = existing.root_uuid;
+                current.chatMetadata.parent_uuid = existing.parent_uuid;
+                await current.ctx.saveMetadata();
                 return;
             }
 
-            snapshot.chatMetadata.uuid = snapshot.ctx.uuidv4();
+            current.chatMetadata.uuid = current.ctx.uuidv4();
             isNewChat = true;
         }
 
-        if (!snapshot.chatMetadata.root_uuid) {
-            snapshot.chatMetadata.root_uuid = snapshot.chatMetadata.uuid;
+        if (!this.isSameContext(contextKey)) return;
+        const current = ctxSnapshot();
+        if (!this.isCharacterChatContext(current) || !current.chatMetadata) return;
+
+        if (!current.chatMetadata.root_uuid) {
+            current.chatMetadata.root_uuid = current.chatMetadata.uuid;
         }
 
-        await snapshot.ctx.saveMetadata();
+        await current.ctx.saveMetadata();
 
         if (isNewChat) {
             await this.pluginClient.registerBranch({
-                uuid: snapshot.chatMetadata.uuid,
-                parent_uuid: snapshot.chatMetadata.parent_uuid || null,
-                root_uuid: snapshot.chatMetadata.root_uuid,
-                character_id: snapshot.character?.avatar || null,
-                chat_name: String(snapshot.chatName || 'Unknown'),
+                uuid: current.chatMetadata.uuid,
+                parent_uuid: current.chatMetadata.parent_uuid || null,
+                root_uuid: current.chatMetadata.root_uuid,
+                character_id: current.character?.avatar || null,
+                chat_name: String(current.chatName || 'Unknown'),
                 branch_point: null,
                 created_at: Date.now(),
             });
@@ -103,6 +128,11 @@ export class BranchService {
     async createBranchWithUUID(mesId) {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot)) return null;
+        const contextKey = this.getContextKey(snapshot);
+        const characterName = snapshot.character?.name;
+        const avatarUrl = snapshot.character?.avatar;
+        const parentUUID = snapshot.chatMetadata?.uuid || null;
+        const rootUUID = snapshot.chatMetadata?.root_uuid || parentUUID;
 
         const chat = snapshot.chat || [];
         if (!chat.length || mesId < 0 || mesId >= chat.length) {
@@ -120,7 +150,7 @@ export class BranchService {
         if (!branchName) return null;
 
         const newUUID = snapshot.ctx.uuidv4();
-        const rootUUID = snapshot.chatMetadata?.root_uuid || snapshot.chatMetadata?.uuid;
+        if (!this.isSameContext(contextKey)) return branchName;
 
         const fullChat = await fetch('/api/chats/get', {
             method: 'POST',
@@ -129,16 +159,16 @@ export class BranchService {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                ch_name: snapshot.character?.name,
+                ch_name: characterName,
                 file_name: branchName,
-                avatar_url: snapshot.character?.avatar,
+                avatar_url: avatarUrl,
             }),
         }).then((res) => res.ok ? res.json() : null).catch(() => null);
 
         if (Array.isArray(fullChat) && fullChat.length > 0) {
             if (!fullChat[0].chat_metadata) fullChat[0].chat_metadata = {};
             fullChat[0].chat_metadata.uuid = newUUID;
-            fullChat[0].chat_metadata.parent_uuid = snapshot.chatMetadata?.uuid || null;
+            fullChat[0].chat_metadata.parent_uuid = parentUUID;
             fullChat[0].chat_metadata.root_uuid = rootUUID;
             fullChat[0].chat_metadata.branch_point = mesId;
 
@@ -146,12 +176,12 @@ export class BranchService {
                 method: 'POST',
                 headers: {
                     ...snapshot.ctx.getRequestHeaders(),
-                    'Content-Type': 'application/json',
+                'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    ch_name: snapshot.character?.name,
+                    ch_name: characterName,
                     file_name: branchName,
-                    avatar_url: snapshot.character?.avatar,
+                    avatar_url: avatarUrl,
                     chat: fullChat,
                 }),
             });
@@ -159,9 +189,9 @@ export class BranchService {
 
         await this.pluginClient.registerBranch({
             uuid: newUUID,
-            parent_uuid: snapshot.chatMetadata?.uuid || null,
+            parent_uuid: parentUUID,
             root_uuid: rootUUID,
-            character_id: snapshot.character?.avatar || null,
+            character_id: avatarUrl || null,
             chat_name: String(branchName),
             branch_point: mesId,
             created_at: Date.now(),
