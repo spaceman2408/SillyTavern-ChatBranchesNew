@@ -1,5 +1,16 @@
 import { getLayoutClass } from './treeLayout.js';
 
+function normalizeMsgCount(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (Array.isArray(value)) return value.length;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+}
+
 export function buildTreeMarkup(controller) {
     if (controller.treeRoots.length === 0) {
         return '<div class="chat-tree-empty">No connected chat history found.</div>';
@@ -25,7 +36,10 @@ export function renderNodeRecursive(controller, node, level) {
     const isRenaming = controller.isRenaming && controller.renameNode?.id === node.id;
 
     const displayLabel = node.name.length > 15 ? `${node.name.substring(0, 15)}...` : node.name;
-    const msgCount = node.data.message_count || node.data.chat_items || node.data.branch_point || 0;
+    const msgCount = normalizeMsgCount(node.data.branch_point)
+        ?? normalizeMsgCount(node.data.message_count)
+        ?? normalizeMsgCount(node.data.chat_items);
+    const hasMsgCount = msgCount !== null && msgCount !== undefined;
 
     return `
         <div class="tree-branch">
@@ -33,7 +47,7 @@ export function renderNodeRecursive(controller, node, level) {
                 <div class="tree-node ${isActive ? 'active-node' : ''} ${isRenaming ? 'renaming' : ''}"
                     data-uuid="${node.id}"
                     data-name="${node.name}"
-                    title="${node.name}${msgCount ? ` (Branch at msg ${msgCount})` : ''}">
+                    title="${node.name}${hasMsgCount ? ` (Branch at msg ${msgCount})` : ''}">
 
                     <div class="node-content">
                         <span class="node-icon"><i class="fa-solid fa-message"></i></span>
