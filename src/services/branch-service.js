@@ -5,6 +5,7 @@ export class BranchService {
     constructor({ pluginClient, settingsProvider }) {
         this.pluginClient = pluginClient;
         this.getSettings = settingsProvider;
+        this.lastMissingPluginToastAt = 0;
     }
 
     isExtensionActive() {
@@ -13,6 +14,20 @@ export class BranchService {
 
     isCharacterChatContext(snapshot) {
         return !snapshot.groupId && snapshot.characterId !== undefined && snapshot.character;
+    }
+
+    maybeNotifyMissingPlugin() {
+        if (!this.getSettings()?.enabled || this.pluginClient.store.pluginRunning) return;
+        const now = Date.now();
+        const cooldownMs = 10000;
+        if (now - this.lastMissingPluginToastAt < cooldownMs) return;
+        this.lastMissingPluginToastAt = now;
+        const message = "Chat Branches can't find the plugin, did you install it? Install and try again.";
+        console.warn(`[ChatBranches] ${message}`);
+        toastr.warning(
+            message,
+            'Plugin Not Found',
+        );
     }
 
     getContextKey(snapshot) {
@@ -35,7 +50,11 @@ export class BranchService {
     async ensureChatUUID() {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot)) return;
-        if (!this.getSettings()?.enabled || !snapshot.chatMetadata) return;
+        if (!snapshot.chatMetadata) return;
+        if (!this.isExtensionActive()) {
+            this.maybeNotifyMissingPlugin();
+            return;
+        }
         if (isCheckpointChat(snapshot.chatName)) return;
         const contextKey = this.getContextKey(snapshot);
         const characterId = snapshot.character?.avatar || null;
@@ -86,7 +105,7 @@ export class BranchService {
 
     async syncRename(newName) {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.getSettings()?.enabled) return;
+        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
         const uuid = snapshot.chatMetadata?.uuid;
         if (!uuid) return;
         await this.pluginClient.updateBranch(uuid, { chat_name: newName });
@@ -94,7 +113,7 @@ export class BranchService {
 
     async syncChangedChatName() {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.getSettings()?.enabled) return;
+        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
         if (isCheckpointChat(snapshot.chatName)) return;
         const uuid = snapshot.chatMetadata?.uuid;
         if (!uuid || !snapshot.chatName) return;
@@ -103,7 +122,7 @@ export class BranchService {
 
     async handleChatDeleted(chatName) {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.getSettings()?.enabled) return;
+        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
         const characterId = snapshot.character?.avatar;
         if (!characterId || !chatName) return;
 
@@ -127,7 +146,7 @@ export class BranchService {
 
     async createBranchWithUUID(mesId) {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot)) return null;
+        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return null;
         const contextKey = this.getContextKey(snapshot);
         const characterName = snapshot.character?.name;
         const avatarUrl = snapshot.character?.avatar;

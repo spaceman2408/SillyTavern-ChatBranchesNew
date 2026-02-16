@@ -59,6 +59,15 @@ const settingsPanel = new SettingsPanel({
         settings.enabled = enabled;
         const { ctx } = ctxSnapshot();
         ctx.saveSettingsDebounced();
+
+        if (enabled) {
+            await branchService.ensureChatUUID();
+            await branchService.syncChangedChatName();
+        }
+
+        treeView.updateDependencies(treeDependencies());
+        buttonManager.injectOptionsButton();
+        buttonManager.injectMessageButtons();
     },
     onRebuild: async () => rebuildService.showRebuildDialog(),
     onLayoutChange: async (layoutVariant) => {
