@@ -12,4 +12,4 @@ export const DEFAULT_SETTINGS = {
     },
 };
 
-export const GRAPH_CACHE_TTL_MS = 30000;
+export const GRAPH_CACHE_TTL_MS = 900000;

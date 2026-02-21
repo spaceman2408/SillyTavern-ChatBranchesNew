@@ -84,6 +84,8 @@ const buttonManager = new ButtonManager({
     onCreateBranch: async (mesId) => branchService.createBranchWithUUID(mesId),
 });
 
+let lastCharacterAvatar = null;
+
 function applyUiState() {
     settingsPanel.refresh();
     buttonManager.injectOptionsButton();
@@ -97,6 +99,17 @@ function invalidateCurrentCharacterGraph() {
     branchGraphService.invalidateCharacter(avatar);
 }
 
+function syncCharacterSwapInvalidation() {
+    const snapshot = ctxSnapshot();
+    const currentAvatar = snapshot.character?.avatar || null;
+
+    if (lastCharacterAvatar && currentAvatar && lastCharacterAvatar !== currentAvatar) {
+        branchGraphService.invalidateCharacter(lastCharacterAvatar);
+    }
+
+    lastCharacterAvatar = currentAvatar;
+}
+
 function registerEvents() {
     const { ctx } = ctxSnapshot();
     const source = ctx.eventSource;
@@ -108,11 +121,20 @@ function registerEvents() {
     });
 
     source.on(events.CHAT_CHANGED, async () => {
+        syncCharacterSwapInvalidation();
         await branchService.ensureChatUUID();
         invalidateCurrentCharacterGraph();
         treeView.updateDependencies(treeDependencies());
         buttonManager.injectOptionsButton();
         buttonManager.onMessageEvent();
+    });
+
+    source.on(events.CHAT_LOADED, () => {
+        syncCharacterSwapInvalidation();
+    });
+
+    source.on(events.CHARACTER_PAGE_LOADED, () => {
+        syncCharacterSwapInvalidation();
     });
 
     source.on(events.CHAT_RENAMED, async (name) => {
@@ -128,6 +150,11 @@ function registerEvents() {
         await branchService.handleCharacterDeleted(data);
     });
 
+    source.on(events.CHARACTER_RENAMED, async (oldAvatar, newAvatar) => {
+        if (oldAvatar) branchGraphService.invalidateCharacter(String(oldAvatar));
+        if (newAvatar) branchGraphService.invalidateCharacter(String(newAvatar));
+    });
+
     source.on(events.MESSAGE_RECEIVED, () => buttonManager.onMessageEvent());
     source.on(events.MESSAGE_SENT, () => buttonManager.onMessageEvent());
     source.on(events.MESSAGE_UPDATED, () => buttonManager.onMessageEvent());
@@ -139,6 +166,7 @@ jQuery(async () => {
     registerEvents();
 
     treeView.updateDependencies(treeDependencies());
+    syncCharacterSwapInvalidation();
     await branchService.ensureChatUUID();
 
     applyUiState();

@@ -5,7 +5,7 @@ export class BranchGraphService {
         this.ttlMs = ttlMs;
     }
 
-    async getGraphForCharacter({ avatarUrl, characterName = '', force = false, signal = null } = {}) {
+    async getGraphForCharacter({ avatarUrl = null, characterName = '', force = false, signal = null } = {}) {
         const characterId = String(avatarUrl || '').trim();
         if (!characterId) {
             return this.emptyGraph(characterId);
@@ -27,7 +27,7 @@ export class BranchGraphService {
         return graph.roots;
     }
 
-    async getNodeByUuid({ avatarUrl, characterName = '', uuid, force = false } = {}) {
+    async getNodeByUuid({ avatarUrl = null, characterName = '', uuid = null, force = false } = {}) {
         if (!uuid) return null;
         const graph = await this.getGraphForCharacter({ avatarUrl, characterName, force });
         return graph.nodesByUuid.get(String(uuid)) || null;
