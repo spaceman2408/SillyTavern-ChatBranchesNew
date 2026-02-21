@@ -70,7 +70,7 @@ export class ChatService {
         });
     }
 
-    async listCharacterChats(avatarUrl, simple = false, metadata = false) {
+    async listCharacterChats(avatarUrl, simple = false, metadata = false, signal = null) {
         const { ctx } = ctxSnapshot();
         const data = await fetchJson('/api/characters/chats', {
             method: 'POST',
@@ -79,6 +79,7 @@ export class ChatService {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ avatar_url: avatarUrl, simple, metadata }),
+            signal,
         });
         return Array.isArray(data) ? data : Object.values(data || {});
     }

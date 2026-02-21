@@ -7,6 +7,15 @@ export class RebuildService {
         this.isRebuilding = false;
     }
 
+    static escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
     async showRebuildDialog() {
         if (this.isRebuilding) {
             toastr.warning('Reindex already in progress', 'Chat Branches');
@@ -38,21 +47,85 @@ export class RebuildService {
         if (!confirmed) return;
 
         this.isRebuilding = true;
+        const abortController = new AbortController();
+        const rebuildState = {
+            running: true,
+            finished: false,
+            cancelled: false,
+        };
+
+        const rebuildPopup = new ctx.Popup(
+            `
+                <h3>Reindex Chat Branches Cache</h3>
+                <p>Reindexing chats for ${RebuildService.escapeHtml(character.name)}...</p>
+                <p>Please wait. Press Cancel to close this dialog.</p>
+            `,
+            ctx.POPUP_TYPE.TEXT,
+            null,
+            {
+                okButton: false,
+                cancelButton: 'Cancel',
+                onClosing: () => {
+                    if (rebuildState.running) {
+                        if (rebuildPopup.result === ctx.POPUP_RESULT.CANCELLED) {
+                            rebuildState.cancelled = true;
+                            abortController.abort();
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    if (!rebuildState.finished) {
+                        return false;
+                    }
+
+                    return rebuildPopup.result === ctx.POPUP_RESULT.AFFIRMATIVE;
+                },
+            },
+        );
+
+        const popupPromise = rebuildPopup.show();
+
         try {
             this.branchGraphService.invalidateCharacter(character.avatar);
             const graph = await this.branchGraphService.getGraphForCharacter({
                 avatarUrl: character.avatar,
                 characterName: character.name,
                 force: true,
+                signal: abortController.signal,
             });
 
-            await ctx.Popup.show.text(
-                'Reindex Complete',
-                `<p>Indexed ${graph.nodesById.size} chats for ${character.name}.</p>`,
-            );
+            rebuildState.running = false;
+            rebuildState.finished = true;
+
+            if (!rebuildState.cancelled && rebuildPopup.dlg?.isConnected) {
+                rebuildPopup.content.innerHTML = `
+                    <h3>Reindex Complete</h3>
+                    <p>Indexed ${graph.nodesById.size} chats for ${RebuildService.escapeHtml(character.name)}.</p>
+                    <p>Press OK to close this dialog.</p>
+                `;
+                rebuildPopup.okButton.style.display = '';
+                rebuildPopup.cancelButton.style.display = 'none';
+            }
         } catch (error) {
-            await ctx.Popup.show.text('Reindex Failed', `<p>${error.message}</p>`);
+            rebuildState.running = false;
+            rebuildState.finished = true;
+
+            if (rebuildState.cancelled || error?.name === 'AbortError') {
+                return;
+            }
+
+            if (!rebuildState.cancelled && rebuildPopup.dlg?.isConnected) {
+                rebuildPopup.content.innerHTML = `
+                    <h3>Reindex Failed</h3>
+                    <p>${RebuildService.escapeHtml(error?.message || String(error))}</p>
+                    <p>Press OK to close this dialog.</p>
+                `;
+                rebuildPopup.okButton.style.display = '';
+                rebuildPopup.cancelButton.style.display = 'none';
+            }
         } finally {
+            await popupPromise;
             this.isRebuilding = false;
         }
     }

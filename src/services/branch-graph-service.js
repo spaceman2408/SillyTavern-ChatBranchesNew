@@ -5,7 +5,7 @@ export class BranchGraphService {
         this.ttlMs = ttlMs;
     }
 
-    async getGraphForCharacter({ avatarUrl, characterName = '', force = false } = {}) {
+    async getGraphForCharacter({ avatarUrl, characterName = '', force = false, signal = null } = {}) {
         const characterId = String(avatarUrl || '').trim();
         if (!characterId) {
             return this.emptyGraph(characterId);
@@ -16,7 +16,7 @@ export class BranchGraphService {
             if (cached) return cached;
         }
 
-        const chats = await this.chatService.listCharacterChats(characterId, false, true);
+        const chats = await this.chatService.listCharacterChats(characterId, false, true, signal);
         const graph = this.buildGraph(characterId, characterName, chats);
         this.setCachedGraph(characterId, graph);
         return graph;
