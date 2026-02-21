@@ -82,7 +82,7 @@ You can test the no-plugin version from this branch:
 3. Click **Change Branch**
 4. Select `branch no-plugin-early-testing-use-at-your-own-risk`
 
-### Performance notes (no-plugin mode)
+### Performance notes (no-plugin )
 
 - The extension builds the tree directly from chat files, so first-load time can be slower on very populated characters.
 - If a character has hundreds or thousands of chats, tree load/reload can take noticeably longer.
@@ -141,3 +141,35 @@ Open **Extensions -> Chat Branches**:
 
 ### The message viewer popup
 ![Chat View Popup](https://i.imgur.com/iUV8SVi.png)
+
+## FAQ (No Plugin)
+
+### Why is the no plugin version sometimes way slower?
+In no plugin , the extension has to look through your chat files each time it rebuilds the tree.
+If you have a lot of chats, that takes time.
+The plugin version keeps this information ready in a faster way, so it can open much quicker.
+
+### How much slower can it be?
+It depends on your setup and chat count.
+For some people it feels close.
+For others, it can be many times slower (even around 10x in bigger chat libraries).
+
+### Is this a bug?
+Not always.
+Slower speed in no plugin  is expected, especially when:
+- You have hundreds of chats for one character
+- Your drive is slower
+- You are rebuilding often after changes (rename, branch creation, etc.)
+
+### Why does my fast PC still feel slow sometimes?
+Even on a strong PC, opening lots of chat files still takes real time.
+This is more about how much data has to be checked than raw CPU power.
+
+### What can I do to improve speed in no plugin?
+- Use the plugin version for the best speed
+- Avoid unnecessary rebuilds back-to-back (e.g. multiple renames in a row)
+- Let one tree load finish before opening/switching again
+
+### Will no plugin be as fast as plugin  later?
+Not realistically, unless SillyTavern core code changes.
+Those kinds of changes are outside normal extension scope.
