@@ -1,14 +1,11 @@
-import { EXTENSION_NAME, PLUGIN_REPO_URL } from '../constants.js';
-import { ctxSnapshot } from '../context.js';
+import { EXTENSION_NAME } from '../constants.js';
 
 export class SettingsPanel {
-    constructor({ getSettings, onToggleEnabled, onRebuild, onLayoutChange, pluginClient, store }) {
+    constructor({ getSettings, onToggleEnabled, onRebuild, onLayoutChange }) {
         this.getSettings = getSettings;
         this.onToggleEnabled = onToggleEnabled;
         this.onRebuild = onRebuild;
         this.onLayoutChange = onLayoutChange;
-        this.pluginClient = pluginClient;
-        this.store = store;
     }
 
     async mount() {
@@ -26,11 +23,6 @@ export class SettingsPanel {
         $(document).off('input.chatBranchesSettings', '#chat_branches_enabled');
         $(document).on('input.chatBranchesSettings', '#chat_branches_enabled', async (event) => {
             const enabled = Boolean($(event.currentTarget).prop('checked'));
-            if (enabled && !this.store.pluginRunning) {
-                toastr.error('Cannot enable extension: plugin is not running.', 'Plugin Error');
-                $(event.currentTarget).prop('checked', false);
-                return;
-            }
             await this.onToggleEnabled(enabled);
             this.refresh();
         });
@@ -38,18 +30,11 @@ export class SettingsPanel {
         $(document).off('click.chatBranchesRebuild', '#chat_branches_rebuild');
         $(document).on('click.chatBranchesRebuild', '#chat_branches_rebuild', () => {
             if (!this.getSettings()?.enabled) {
-                toastr.info('Enable Chat Branches to use rebuild.', 'Extension Disabled');
-                return;
-            }
-            if (!this.store.pluginRunning) {
-                toastr.warning('Rebuild is unavailable while the plugin is offline.', 'Plugin Required');
+                toastr.info('Enable Chat Branches to reindex cache.', 'Extension Disabled');
                 return;
             }
             this.onRebuild();
         });
-
-        $(document).off('click.chatBranchesInstall', '#chat_branches_install_plugin');
-        $(document).on('click.chatBranchesInstall', '#chat_branches_install_plugin', () => this.showInstallPopup());
 
         $(document).off('change.chatBranchesLayout', '#chat_branches_tree_layout');
         $(document).on('change.chatBranchesLayout', '#chat_branches_tree_layout', async (event) => {
@@ -64,55 +49,30 @@ export class SettingsPanel {
     refresh() {
         const settings = this.getSettings();
         const isEnabled = Boolean(settings.enabled);
-        $('#chat_branches_enabled').prop('checked', Boolean(settings.enabled));
+        $('#chat_branches_enabled').prop('checked', isEnabled);
         $('#chat_branches_tree_layout').val(settings.ui?.treeLayout || 'top-down');
+
         const rebuildButton = $('#chat_branches_rebuild');
         const layoutSelect = $('#chat_branches_tree_layout');
 
-        if (!this.store.pluginRunning) {
-            $('#chat_branches_enabled').prop('disabled', true);
-            $('#chat_branches_plugin_missing_section').show();
+        if (!isEnabled) {
             layoutSelect
                 .prop('disabled', true)
-                .attr('title', 'Tree layout unavailable: plugin is not detected');
+                .attr('title', 'Enable Chat Branches to change tree layout');
             rebuildButton
                 .addClass('disabled')
                 .attr('aria-disabled', 'true')
-                .attr('title', 'Rebuild unavailable: plugin is not detected')
-                .attr('data-disabled-title', 'Plugin not detected');
+                .attr('title', 'Enable Chat Branches to reindex cache')
+                .attr('data-disabled-title', 'Extension disabled');
         } else {
-            $('#chat_branches_enabled').prop('disabled', false);
-            $('#chat_branches_plugin_missing_section').hide();
-            if (!isEnabled) {
-                layoutSelect
-                    .prop('disabled', true)
-                    .attr('title', 'Enable Chat Branches to change tree layout');
-                rebuildButton
-                    .addClass('disabled')
-                    .attr('aria-disabled', 'true')
-                    .attr('title', 'Enable Chat Branches to rebuild storage')
-                    .attr('data-disabled-title', 'Extension disabled');
-            } else {
-                layoutSelect
-                    .prop('disabled', false)
-                    .attr('title', 'Select how branch nodes are arranged in the tree viewer.');
-                rebuildButton
-                    .removeClass('disabled')
-                    .attr('aria-disabled', 'false')
-                    .attr('title', 'Rebuild storage from chat files')
-                    .removeAttr('data-disabled-title');
-            }
+            layoutSelect
+                .prop('disabled', false)
+                .attr('title', 'Select how branch nodes are arranged in the tree viewer.');
+            rebuildButton
+                .removeClass('disabled')
+                .attr('aria-disabled', 'false')
+                .attr('title', 'Reindex cache from chat metadata')
+                .removeAttr('data-disabled-title');
         }
-    }
-
-    async showInstallPopup() {
-        const { ctx } = ctxSnapshot();
-        const dom = document.createElement('div');
-        dom.classList.add('chat-branches--askInstall');
-        dom.innerHTML = `<h3>Chat Branches - Missing Plugin</h3>
-            <div>You need to install the Chat Branches server plugin and restart your server:</div>
-            <ul><li><a target="_blank" href="${PLUGIN_REPO_URL}">${PLUGIN_REPO_URL}</a></li></ul>`;
-        const popup = new ctx.Popup(dom, ctx.POPUP_TYPE.TEXT, null, { okButton: 'Close' });
-        await popup.show();
     }
 }

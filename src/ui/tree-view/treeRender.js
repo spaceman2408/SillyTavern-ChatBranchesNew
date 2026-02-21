@@ -11,6 +11,14 @@ function normalizeMsgCount(value) {
     return null;
 }
 
+function getBranchPointLabel(node) {
+    const raw = normalizeMsgCount(node?.data?.branch_point);
+    if (raw === null || raw === undefined) return null;
+
+    // Show exactly what metadata stores; avoid synthetic fallbacks that create false positives on roots.
+    return Math.max(0, raw);
+}
+
 export function buildTreeMarkup(controller) {
     if (controller.treeRoots.length === 0) {
         return '<div class="chat-tree-empty">No connected chat history found.</div>';
@@ -36,18 +44,17 @@ export function renderNodeRecursive(controller, node, level) {
     const isRenaming = controller.isRenaming && controller.renameNode?.id === node.id;
 
     const displayLabel = node.name.length > 15 ? `${node.name.substring(0, 15)}...` : node.name;
-    const msgCount = normalizeMsgCount(node.data.branch_point)
-        ?? normalizeMsgCount(node.data.message_count)
-        ?? normalizeMsgCount(node.data.chat_items);
-    const hasMsgCount = msgCount !== null && msgCount !== undefined;
+    const branchPointLabel = getBranchPointLabel(node);
+    const hasBranchPoint = branchPointLabel !== null && branchPointLabel !== undefined;
+    const branchPointTitle = hasBranchPoint ? ` (Branch at msg ${branchPointLabel})` : '';
 
     return `
         <div class="tree-branch">
             <div class="tree-entry">
-                <div class="tree-node ${isActive ? 'active-node' : ''} ${isRenaming ? 'renaming' : ''}"
+                    <div class="tree-node ${isActive ? 'active-node' : ''} ${isRenaming ? 'renaming' : ''}"
                     data-uuid="${node.id}"
                     data-name="${node.name}"
-                    title="${node.name}${hasMsgCount ? ` (Branch at msg ${msgCount})` : ''}">
+                    title="${node.name}${branchPointTitle}">
 
                     <div class="node-content">
                         <span class="node-icon"><i class="fa-solid fa-message"></i></span>

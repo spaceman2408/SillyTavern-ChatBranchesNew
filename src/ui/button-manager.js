@@ -2,11 +2,10 @@ import { ctxSnapshot } from '../context.js';
 import { debounce } from '../utils/async.js';
 
 export class ButtonManager {
-    constructor({ getSettings, onOpenTreeView, onCreateBranch, pluginClient }) {
+    constructor({ getSettings, onOpenTreeView, onCreateBranch }) {
         this.getSettings = getSettings;
         this.onOpenTreeView = onOpenTreeView;
         this.onCreateBranch = onCreateBranch;
-        this.pluginClient = pluginClient;
         this.refreshMessageButtonsDebounced = debounce(() => this.injectMessageButtons(), 100);
     }
 
@@ -49,7 +48,7 @@ export class ButtonManager {
     }
 
     isActive() {
-        return this.getSettings().enabled && this.pluginClient.store.pluginRunning;
+        return Boolean(this.getSettings().enabled);
     }
 
     injectOptionsButton() {

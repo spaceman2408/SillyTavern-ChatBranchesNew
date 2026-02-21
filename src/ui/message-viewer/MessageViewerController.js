@@ -1,14 +1,11 @@
 /**
  * MessageViewerPopup - Displays chat messages from a selected branch
- * Refactored for performance and readability.
  */
 export class MessageViewerController {
     constructor(dependencies) {
-        // Dependencies
-        this.deps = dependencies; // Store all deps in one object to save lines
-        this.token = dependencies.token; // Keep freq used ones handy
-        
-        // State
+        this.deps = dependencies;
+        this.token = dependencies.token;
+
         this.state = {
             chatName: null,
             chatUUID: null,
@@ -16,20 +13,14 @@ export class MessageViewerController {
             isLoading: false,
             isDestroyed: false,
             swipeIndices: new Map(),
-            expandedMessages: new Set()
+            expandedMessages: new Set(),
         };
 
-        // DOM Elements
         this.$element = null;
         this.$overlay = null;
 
-        // Bindings
         this._handleGlobalEvents = this._handleGlobalEvents.bind(this);
     }
-
-    // =================================================================================
-    // Public API
-    // =================================================================================
 
     updateDependencies(newDeps) {
         if (this.state.isDestroyed) return;
@@ -38,10 +29,10 @@ export class MessageViewerController {
     }
 
     async show(chatData, options = {}) {
-        if (this.state.isDestroyed || !chatData?.uuid) return;
+        if (this.state.isDestroyed) return;
 
-        this.state.chatUUID = chatData.uuid;
-        this.state.chatName = chatData.name || chatData.chat_name;
+        this.state.chatUUID = chatData?.uuid || null;
+        this.state.chatName = chatData?.name || chatData?.chat_name || null;
         this.state.messages = [];
         this.state.swipeIndices.clear();
         this.state.expandedMessages.clear();
@@ -65,11 +56,10 @@ export class MessageViewerController {
                 this.$overlay = null;
             });
         }
-        // Clear message data to free memory - important for large chats
+
         this.state.messages = [];
         this.state.swipeIndices.clear();
         this.state.expandedMessages.clear();
-        // Reset state
         this.state.chatName = null;
         this.state.chatUUID = null;
     }
@@ -80,10 +70,6 @@ export class MessageViewerController {
         this.deps = null;
     }
 
-    // =================================================================================
-    // Data Loading & Processing
-    // =================================================================================
-
     async _loadMessages() {
         this.state.isLoading = true;
         this._renderLoading();
@@ -92,20 +78,17 @@ export class MessageViewerController {
             const character = this.deps.characters[this.deps.this_chid];
             if (!character) throw new Error('Character not loaded');
 
-            // 1. Get Branch Info (for Chat Name)
-            const branchRes = await this._fetchJson(`${this.deps.pluginBaseUrl}/branch/${this.state.chatUUID}`);
-            if (!branchRes?.branch?.chat_name) throw new Error('Branch data missing');
-            
-            this.state.chatName = branchRes.branch.chat_name;
+            const resolvedChatName = await this._resolveChatName(character);
+            if (!resolvedChatName) {
+                throw new Error('Unable to resolve chat name for this node');
+            }
+
+            this.state.chatName = resolvedChatName;
             this._updateTitle();
 
-            // 2. Fetch Messages (Strategy Pattern: Try A, then B, then C)
-            let rawData = await this._fetchChatDataStrategy(character);
-            
-            // 3. Process
+            const rawData = await this._fetchChatData(character, this.state.chatName);
             this.state.messages = this._processRawMessages(rawData);
             this._renderList();
-
         } catch (error) {
             console.error('[Chat Branches][Message Viewer] Load failed:', error);
             this._renderError(error.message);
@@ -114,42 +97,39 @@ export class MessageViewerController {
         }
     }
 
-    async _fetchChatDataStrategy(character) {
-        const payload = { 
-            ch_name: character.name, 
-            file_name: this.state.chatName, 
-            avatar_url: character.avatar 
-        };
-
-        // Attempt 1: Standard API (exact name)
-        let data = await this._fetchApi('/api/chats/get', payload);
-        
-        // Attempt 2: Standard API (.jsonl appended)
-        if (!data) {
-            payload.file_name += '.jsonl';
-            data = await this._fetchApi('/api/chats/get', payload);
+    async _resolveChatName(character) {
+        if (this.state.chatName) {
+            return this.state.chatName;
         }
 
-        // Attempt 3: Plugin Fallback
+        if (!this.state.chatUUID || !this.deps.branchGraphService) {
+            return null;
+        }
+
+        const node = await this.deps.branchGraphService.getNodeByUuid({
+            avatarUrl: character.avatar,
+            characterName: character.name,
+            uuid: this.state.chatUUID,
+        });
+
+        return node?.chat_name || null;
+    }
+
+    async _fetchChatData(character, chatName) {
+        const payload = {
+            ch_name: character.name,
+            file_name: chatName,
+            avatar_url: character.avatar,
+        };
+
+        let data = await this._fetchApi('/api/chats/get', payload);
         if (!data || (Array.isArray(data) && data.length === 0)) {
-            console.warn('[Chat Branches][Message Viewer] API empty, trying plugin fallback...');
-            const pluginData = await this._fetchJson(
-                `${this.deps.pluginBaseUrl}/messages/${this.state.chatUUID}`, 
-                { method: 'POST', body: JSON.stringify({ character_name: character.name }) }
-            );
-            if (pluginData?.success) data = pluginData.messages;
+            payload.file_name = `${chatName}.jsonl`;
+            data = await this._fetchApi('/api/chats/get', payload);
         }
 
         if (!data) throw new Error('Could not load chat data');
         return data;
-    }
-
-    // Helper wrapper for Fetch
-    async _fetchJson(url, options = {}) {
-        options.headers = { ...options.headers, 'X-CSRF-Token': this.token, 'Content-Type': 'application/json' };
-        const res = await fetch(url, options);
-        if (!res.ok) return null;
-        return await res.json();
     }
 
     async _fetchApi(url, body) {
@@ -157,24 +137,25 @@ export class MessageViewerController {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.token },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
             });
             if (!res.ok) return null;
             return await res.json();
-        } catch { return null; }
+        } catch {
+            return null;
+        }
     }
 
     _processRawMessages(data) {
         if (!data) return [];
         const list = Array.isArray(data) ? data : (data.messages || Object.values(data));
-        
+
         return list
-            .filter(entry => entry && (entry.mes !== undefined || entry.name || entry.is_user))
+            .filter((entry) => entry && (entry.mes !== undefined || entry.name || entry.is_user))
             .map((entry, idx) => {
                 const swipes = Array.isArray(entry.swipes) ? entry.swipes : [entry.mes];
                 const swipeId = entry.swipe_id || 0;
-                
-                // Initialize swipe state
+
                 this.state.swipeIndices.set(idx, swipeId);
 
                 return {
@@ -184,20 +165,15 @@ export class MessageViewerController {
                     timestamp: MessageViewerController.formatTimestamp(entry.send_date),
                     isUser: !!entry.is_user,
                     isSystem: !!entry.is_system,
-                    swipes: swipes,
-                    swipeCount: swipes.length
+                    swipes,
+                    swipeCount: swipes.length,
                 };
             });
     }
 
-    // =================================================================================
-    // Rendering & UI
-    // =================================================================================
-
     async _ensureDom() {
         $('#message_viewer_overlay').remove();
-        
-        // Inject Styles if not exists
+
         if (!$('#message-viewer-styles').length) {
             const cssPath = `/scripts/extensions/third-party/${this.deps.extensionName}/src/css/message-viewer-popup.css`;
             $('head').append(`<link id="message-viewer-styles" rel="stylesheet" href="${cssPath}">`);
@@ -242,30 +218,32 @@ export class MessageViewerController {
             return;
         }
 
-        const html = this.state.messages.map(msg => this._buildMessageHtml(msg)).join('');
+        const html = this.state.messages.map((msg) => this._buildMessageHtml(msg)).join('');
         $('#message_viewer_content').html(`<div class="message-viewer-list">${html}</div>`);
     }
 
     _buildMessageHtml(msg) {
         const currentIndex = this.state.swipeIndices.get(msg.id) || 0;
         const currentContent = String(msg.swipes[currentIndex] || msg.content);
-        
+
         const isExpanded = this.state.expandedMessages.has(msg.id);
         const shouldTruncate = !isExpanded && currentContent.length > 500;
         const displayContent = shouldTruncate ? currentContent.substring(0, 500) + '...' : currentContent;
 
         const typeClass = msg.isUser ? 'user-message' : (msg.isSystem ? 'system-message' : 'assistant-message');
-        
-        // Controls HTML
-        const expandBtn = shouldTruncate ? 
-            `<button class="expand-message-btn" data-id="${msg.id}"><i class="fa-solid fa-expand"></i> Expand</button>` : '';
-        
-        const swipeControls = (msg.swipeCount > 1 && !msg.isUser) ? `
+
+        const expandBtn = shouldTruncate
+            ? `<button class="expand-message-btn" data-id="${msg.id}"><i class="fa-solid fa-expand"></i> Expand</button>`
+            : '';
+
+        const swipeControls = (msg.swipeCount > 1 && !msg.isUser)
+            ? `
             <div class="swipe-controls">
                 <button class="swipe-arrow prev" data-id="${msg.id}" ${currentIndex === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button>
                 <span class="swipe-counter">${currentIndex + 1}/${msg.swipeCount}</span>
                 <button class="swipe-arrow next" data-id="${msg.id}" ${currentIndex === msg.swipeCount - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
-            </div>` : '';
+            </div>`
+            : '';
 
         return `
             <div class="message-viewer-item ${typeClass}" data-id="${msg.id}">
@@ -283,20 +261,13 @@ export class MessageViewerController {
         $('#message_viewer_title span').text(name.length > 40 ? name.substring(0, 40) + '...' : name);
     }
 
-
-    // =================================================================================
-    // Event Handling (Centralized)
-    // =================================================================================
-
     _bindEvents() {
         $('#message_viewer_close').on('click', () => this.hide());
-        
-        // Event Delegation: One listener for the whole list
+
         const $content = $('#message_viewer_content');
         $content.on('click', (e) => {
             const target = $(e.target);
-            
-            // Handle Swipe Arrows
+
             const swipeBtn = target.closest('.swipe-arrow');
             if (swipeBtn.length) {
                 e.stopPropagation();
@@ -304,7 +275,6 @@ export class MessageViewerController {
                 return;
             }
 
-            // Handle Expand
             const expandBtn = target.closest('.expand-message-btn');
             if (expandBtn.length) {
                 e.stopPropagation();
@@ -312,23 +282,19 @@ export class MessageViewerController {
                 return;
             }
 
-            // Handle Message Click (Navigation)
             const item = target.closest('.message-viewer-item');
             if (item.length && !target.closest('.swipe-controls').length) {
                 this._navigateToMessage(parseInt(item.data('id')));
             }
         });
 
-        // Global events
         $(document).on('keydown.mv', this._handleGlobalEvents);
-        
-        // DELAYED BINDING: Wait 100ms so the click that opened this doesn't close it
+
         setTimeout(() => {
             if (!this.state.isDestroyed && this.$overlay) {
                 $(document).on('click.mv', this._handleGlobalEvents);
             }
         }, 100);
-
     }
 
     _unbindEvents() {
@@ -345,13 +311,12 @@ export class MessageViewerController {
     _handleSwipe(id, dir) {
         const msg = this.state.messages[id];
         if (!msg) return;
-        
+
         const current = this.state.swipeIndices.get(id) || 0;
         const next = current + dir;
-        
+
         if (next >= 0 && next < msg.swipes.length) {
             this.state.swipeIndices.set(id, next);
-            // Re-render just this item
             $(`.message-viewer-item[data-id="${id}"]`).replaceWith(this._buildMessageHtml(msg));
         }
     }
@@ -359,154 +324,57 @@ export class MessageViewerController {
     _handleExpand(id) {
         this.state.expandedMessages.add(id);
         const msg = this.state.messages[id];
-        $(`.message-viewer-item[data-id="${id}"]`).replaceWith(this._buildMessageHtml(msg));
-    }
-
-    async _navigateToMessage(id) {
-        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-        try {
-            // 1. Context Check: Switch chat if needed
-            const character = this.deps.characters[this.deps.this_chid];
-            const activeChat = character ? character.chat : null;
-
-            if (activeChat !== this.state.chatName) {
-                await this.deps.openCharacterChat(this.state.chatName);
-                await wait(500);
-            }
-
-            if (this.deps.onNavigate) this.deps.onNavigate(this.state.chatName, id);
-            this.hide();
-
-            // 2. Use the built-in /chat-jump slash command to scroll to the message
-            // Import and use the executeSlashCommandsWithOptions function from slash-commands.js
-            const { executeSlashCommandsWithOptions } = await import('../../../../../../slash-commands.js');
-            await executeSlashCommandsWithOptions(`/chat-jump ${id}`, {
-                handleParserErrors: true,
-                handleExecutionErrors: false,
-            });
-        } catch (e) {
-            console.error('[Chat Branches][Message Viewer] Navigation error:', e);
+        if (msg) {
+            $(`.message-viewer-item[data-id="${id}"]`).replaceWith(this._buildMessageHtml(msg));
         }
     }
 
-    /**
-     * Fallback navigation method when slash commands are not available.
-     * Uses the original "hunt" loop approach.
-     * @param {number} id - The message ID to navigate to
-     */
-    async _fallbackNavigateToMessage(id) {
-        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    async _navigateToMessage(messageIndex) {
+        const msg = this.state.messages[messageIndex];
+        if (!msg) return;
 
-        try {
-            for (let attempt = 0; attempt < 30; attempt++) {
-                const $msg = $(`.mes[mesid="${id}"]`);
+        const currentChat = String(this.deps?.characters?.[this.deps?.this_chid]?.chat || '');
+        const targetChat = String(this.state.chatName || '');
+        const normalizedCurrent = currentChat.replace(/\.jsonl$/i, '');
+        const normalizedTarget = targetChat.replace(/\.jsonl$/i, '');
 
-                if ($msg.length) {
-                    $msg[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    await wait(1000);
-                    $msg.addClass('message-highlight-flash');
-                    setTimeout(() => $msg.removeClass('message-highlight-flash'), 3000);
-                    return;
-                }
+        if (this.deps.onNavigate) this.deps.onNavigate();
+        this.hide();
 
-                const $showMoreBtn = $('#show_more_messages');
+        // Let UI transition close overlays before scrolling chat.
+        await new Promise((resolve) => setTimeout(resolve, 60));
 
-                if (!$showMoreBtn.length || !$showMoreBtn.is(':visible')) {
-                    console.warn('[Chat Branches][Message Viewer] Message not found and no more history available.');
-                    break;
-                }
-
-                $showMoreBtn[0].scrollIntoView({ behavior: 'auto', block: 'center' });
-                await wait(200);
-
-                // We fire the standard click, then manually dispatch the mouse event sequence
-                // to satisfy any specific listeners (like mousedown/mouseup binders).
-                try {
-                    const element = $showMoreBtn[0];
-                    
-                    element.click();
-
-                    ['mousedown', 'mouseup', 'click'].forEach(eventType => {
-                        const event = new MouseEvent(eventType, {
-                            view: window,
-                            bubbles: true,
-                            cancelable: true,
-                            buttons: 1
-                        });
-                        element.dispatchEvent(event);
-                    });
-                } catch (err) {
-                    console.warn('[Chat Branches][Message Viewer] Native click failed, trying jQuery trigger', err);
-                    $showMoreBtn.trigger('click');
-                }
-                // We wait longer (1.5s) to ensure the network request and DOM injection finish
-                await wait(1500);
-            }
-            console.warn('[Chat Branches][Message Viewer] Message not found after all attempts. Try increasing # Msg. to Load in User Settings.');
-            if (typeof toastr !== 'undefined') {
-                toastr.warning('Message not found (it may be deleted or unreachable).');
-            }
-        } catch (e) {
-            console.error('[Chat Branches][Message Viewer] Fallback navigation error:', e);
+        if (normalizedTarget && normalizedCurrent !== normalizedTarget && typeof this.deps?.openCharacterChat === 'function') {
+            await this.deps.openCharacterChat(normalizedTarget);
+            // Give ST a moment to render loaded messages before jumping.
+            await new Promise((resolve) => setTimeout(resolve, 120));
         }
+
+        const { executeSlashCommandsOnChatInput } = await import('../../../../../../slash-commands.js');
+        await executeSlashCommandsOnChatInput(`/chat-jump ${messageIndex}`, {
+            source: 'Chat Branches',
+        });
     }
 
-    // =================================================================================
-    // Static Helpers
-    // =================================================================================
-
-    static escapeHtml(text) {
-        if (!text) return '';
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+    static escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            .replace(/\n/g, '<br>');
     }
 
-    static formatTimestamp(ts) {
-        if (!ts) return 'Unknown';
+    static formatTimestamp(dateStr) {
+        if (!dateStr) return 'Unknown time';
         try {
-            let date;
-            
-            // Try direct parsing first (handles standard ISO and timestamp formats)
-            date = new Date(ts);
-            
-            // If that fails, try parsing older formats like "March 11, 2025 5:03pm"
-            if (isNaN(date.getTime())) {
-                // Parse format: "Month Day, Year Hour:Minutes(am/pm)"
-                // Examples: "March 11, 2025 5:03pm", "January 1, 2024 12:30am"
-                const dateMatch = ts.match(/^(\w+)\s+(\d+),\s*(\d{4})\s*(\d{1,2}):(\d{2})(am|pm)$/i);
-                
-                if (dateMatch) {
-                    const [, monthStr, day, year, hour, minute, ampm] = dateMatch;
-                    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                                   'July', 'August', 'September', 'October', 'November', 'December'];
-                    const monthIndex = months.indexOf(monthStr);
-                    
-                    if (monthIndex !== -1) {
-                        let hours = parseInt(hour, 10);
-                        if (ampm.toLowerCase() === 'pm' && hours !== 12) {
-                            hours += 12;
-                        } else if (ampm.toLowerCase() === 'am' && hours === 12) {
-                            hours = 0;
-                        }
-                        
-                        date = new Date(parseInt(year, 10), monthIndex, parseInt(day, 10), hours, parseInt(minute, 10));
-                    }
-                }
-            }
-            
-            // If still invalid, return Unknown
-            if (isNaN(date.getTime())) return 'Unknown';
-            
-            // Always show both date and time for clarity
-            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-            
-            return `${dateStr} ${timeStr}`;
-        } catch { return 'Unknown'; }
+            const date = new Date(dateStr);
+            return date.toLocaleString();
+        } catch {
+            return dateStr;
+        }
     }
 }
+
+export { MessageViewerController as MessageViewerPopup };

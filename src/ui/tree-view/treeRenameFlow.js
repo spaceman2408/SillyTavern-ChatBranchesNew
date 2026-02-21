@@ -68,8 +68,7 @@ export async function confirmRenameFlow(controller, uuid, newName) {
         $input.prop('disabled', false);
         $input.focus();
 
-        if (error.message?.includes('Plugin request failed') ||
-            error.message?.includes('Network error') ||
+        if (error.message?.includes('Network error') ||
             error.message?.includes('Failed to fetch')) {
             controller.isRenaming = false;
             controller.renameNode = null;

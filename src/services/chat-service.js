@@ -12,7 +12,6 @@ async function fetchJson(url, init = {}) {
 export class ChatService {
     async saveBranchChat() {
         const { ctx } = ctxSnapshot();
-        // ST context API currently exposes saveChat() with no arguments.
         await ctx.saveChat();
     }
 
@@ -71,7 +70,7 @@ export class ChatService {
         });
     }
 
-    async listCharacterChats(avatarUrl, simple = false) {
+    async listCharacterChats(avatarUrl, simple = false, metadata = false) {
         const { ctx } = ctxSnapshot();
         const data = await fetchJson('/api/characters/chats', {
             method: 'POST',
@@ -79,7 +78,7 @@ export class ChatService {
                 ...ctx.getRequestHeaders(),
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ avatar_url: avatarUrl, simple }),
+            body: JSON.stringify({ avatar_url: avatarUrl, simple, metadata }),
         });
         return Array.isArray(data) ? data : Object.values(data || {});
     }

@@ -2,32 +2,17 @@ import { ctxSnapshot } from '../context.js';
 import { isCheckpointChat } from '../utils/checkpoints.js';
 
 export class BranchService {
-    constructor({ pluginClient, settingsProvider }) {
-        this.pluginClient = pluginClient;
+    constructor({ settingsProvider, branchGraphService }) {
         this.getSettings = settingsProvider;
-        this.lastMissingPluginToastAt = 0;
+        this.branchGraphService = branchGraphService;
     }
 
     isExtensionActive() {
-        return Boolean(this.getSettings()?.enabled) && this.pluginClient.store.pluginRunning;
+        return Boolean(this.getSettings()?.enabled);
     }
 
     isCharacterChatContext(snapshot) {
         return !snapshot.groupId && snapshot.characterId !== undefined && snapshot.character;
-    }
-
-    maybeNotifyMissingPlugin() {
-        if (!this.getSettings()?.enabled || this.pluginClient.store.pluginRunning) return;
-        const now = Date.now();
-        const cooldownMs = 10000;
-        if (now - this.lastMissingPluginToastAt < cooldownMs) return;
-        this.lastMissingPluginToastAt = now;
-        const message = "Chat Branches can't find the plugin, did you install it? Install and try again.";
-        console.warn(`[ChatBranches] ${message}`);
-        toastr.warning(
-            message,
-            'Plugin Not Found',
-        );
     }
 
     getContextKey(snapshot) {
@@ -47,37 +32,23 @@ export class BranchService {
         );
     }
 
+    invalidateCharacterGraph(avatar) {
+        if (!avatar || !this.branchGraphService) return;
+        this.branchGraphService.invalidateCharacter(avatar);
+    }
+
     async ensureChatUUID() {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot)) return;
         if (!snapshot.chatMetadata) return;
-        if (!this.isExtensionActive()) {
-            this.maybeNotifyMissingPlugin();
-            return;
-        }
+        if (!this.isExtensionActive()) return;
         if (isCheckpointChat(snapshot.chatName)) return;
+
         const contextKey = this.getContextKey(snapshot);
-        const characterId = snapshot.character?.avatar || null;
-        const chatName = snapshot.chatName || 'Unknown';
+        const avatar = snapshot.character?.avatar || null;
 
-        let isNewChat = false;
         if (!snapshot.chatMetadata.uuid) {
-            const candidates = await this.pluginClient.queryByChatName(chatName).catch(() => []);
-            if (!this.isSameContext(contextKey)) return;
-
-            const current = ctxSnapshot();
-            if (!this.isCharacterChatContext(current) || !current.chatMetadata) return;
-            const existing = candidates.find((branch) => branch.character_id === characterId && branch.chat_name === chatName);
-            if (existing) {
-                current.chatMetadata.uuid = existing.uuid;
-                current.chatMetadata.root_uuid = existing.root_uuid;
-                current.chatMetadata.parent_uuid = existing.parent_uuid;
-                await current.ctx.saveMetadata();
-                return;
-            }
-
-            current.chatMetadata.uuid = current.ctx.uuidv4();
-            isNewChat = true;
+            snapshot.chatMetadata.uuid = snapshot.ctx.uuidv4();
         }
 
         if (!this.isSameContext(contextKey)) return;
@@ -89,59 +60,26 @@ export class BranchService {
         }
 
         await current.ctx.saveMetadata();
-
-        if (isNewChat) {
-            await this.pluginClient.registerBranch({
-                uuid: current.chatMetadata.uuid,
-                parent_uuid: current.chatMetadata.parent_uuid || null,
-                root_uuid: current.chatMetadata.root_uuid,
-                character_id: current.character?.avatar || null,
-                chat_name: String(current.chatName || 'Unknown'),
-                branch_point: null,
-                created_at: Date.now(),
-            });
-        }
+        this.invalidateCharacterGraph(avatar);
     }
 
-    async syncRename(newName) {
-        const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
-        const uuid = snapshot.chatMetadata?.uuid;
-        if (!uuid) return;
-        await this.pluginClient.updateBranch(uuid, { chat_name: newName });
+    async syncRename(_newName) {
+        return;
     }
 
     async syncChangedChatName() {
-        const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
-        if (isCheckpointChat(snapshot.chatName)) return;
-        const uuid = snapshot.chatMetadata?.uuid;
-        if (!uuid || !snapshot.chatName) return;
-        await this.pluginClient.updateBranch(uuid, { chat_name: snapshot.chatName });
+        return;
     }
 
-    async handleChatDeleted(chatName) {
+    async handleChatDeleted(_chatName) {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return;
-        const characterId = snapshot.character?.avatar;
-        if (!characterId || !chatName) return;
-
-        const tree = await this.pluginClient.getTree(characterId, { force: true }).catch(() => []);
-        const stack = [...tree];
-        while (stack.length) {
-            const node = stack.pop();
-            if (node.chat_name === chatName) {
-                await this.pluginClient.deleteBranch(node.uuid, true);
-                return;
-            }
-            if (Array.isArray(node.children)) stack.push(...node.children);
-        }
+        if (!this.isCharacterChatContext(snapshot)) return;
+        this.invalidateCharacterGraph(snapshot.character?.avatar);
     }
 
     async handleCharacterDeleted(eventData) {
         const characterId = eventData?.character?.avatar;
-        if (!characterId) return;
-        await this.pluginClient.deleteCharacter(characterId);
+        this.invalidateCharacterGraph(characterId);
     }
 
     async createBranchWithUUID(mesId) {
@@ -188,14 +126,14 @@ export class BranchService {
             if (!fullChat[0].chat_metadata) fullChat[0].chat_metadata = {};
             fullChat[0].chat_metadata.uuid = newUUID;
             fullChat[0].chat_metadata.parent_uuid = parentUUID;
-            fullChat[0].chat_metadata.root_uuid = rootUUID;
+            fullChat[0].chat_metadata.root_uuid = rootUUID || newUUID;
             fullChat[0].chat_metadata.branch_point = mesId;
 
             await fetch('/api/chats/save', {
                 method: 'POST',
                 headers: {
                     ...snapshot.ctx.getRequestHeaders(),
-                'Content-Type': 'application/json',
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     ch_name: characterName,
@@ -206,16 +144,7 @@ export class BranchService {
             });
         }
 
-        await this.pluginClient.registerBranch({
-            uuid: newUUID,
-            parent_uuid: parentUUID,
-            root_uuid: rootUUID,
-            character_id: avatarUrl || null,
-            chat_name: String(branchName),
-            branch_point: mesId,
-            created_at: Date.now(),
-        });
-
+        this.invalidateCharacterGraph(avatarUrl);
         return branchName;
     }
 }

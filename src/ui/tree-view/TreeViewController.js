@@ -9,12 +9,6 @@ import { buildTreeMarkup, loadingMarkup, renderNodeRecursive, renderRenameInput 
 import { cancelRenameFlow, confirmRenameFlow, startRenameFlow } from './treeRenameFlow.js';
 import { handleRootChange as handleRootChangeSelection, populateRootDropdown as populateRoots } from './treeRootSelector.js';
 
-/**
- * Check if a chat is a checkpoint (bookmark)
- * Checkpoints are identified by the pattern 'Checkpoint #' in the chat name
- * @param {string} chatName - The chat name to check
- * @returns {boolean} - True if chat is a checkpoint
- */
 function isCheckpointChat(chatName) {
     return chatName && chatName.includes('Checkpoint #');
 }
@@ -26,41 +20,37 @@ export class TreeViewController {
         this.token = dependencies.token;
         this.openCharacterChat = dependencies.openCharacterChat;
         this.extensionName = dependencies.extensionName;
-        this.pluginBaseUrl = dependencies.pluginBaseUrl;
-        this.pluginClient = dependencies.pluginClient;
+        this.branchGraphService = dependencies.branchGraphService;
         this.selected_group = dependencies.selected_group;
-        this.chat_metadata = dependencies.chat_metadata;  // Add chat_metadata reference
+        this.chat_metadata = dependencies.chat_metadata;
         this.layoutVariant = dependencies.layoutVariant || 'top-down';
 
-        // State
         this.treeRoots = [];
-        this.allTreeRoots = []; // Store all root nodes for dropdown
+        this.allTreeRoots = [];
         this.nodeMap = new Map();
         this.currentChatFile = null;
         this.currentChatUUID = null;
-        this.currentRootNode = null; // Track currently selected root
+        this.currentRootNode = null;
         this.expandedUUIDs = new Set();
-        
-        // UI State
+
         this.resizeTimer = null;
         this.lineRedrawTimer = null;
         this.lineRedrawRaf = null;
         this.isPanning = false;
-        this.wasPanning = false; // Track if we just finished panning
+        this.wasPanning = false;
         this.panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
-        this.isSwappingChat = false; // Prevent multiple simultaneous chat swaps
-        this.isRenaming = false; // Track rename state
-        this.renameNode = null; // Track node being renamed
+        this.isSwappingChat = false;
+        this.isRenaming = false;
+        this.renameNode = null;
 
-        // Sub-components
         this.contextMenu = new ContextMenu();
         this.messageViewerPopup = null;
         this.contextMenuNode = null;
         this.renameHandler = new ChatRenameHandler({
             token: this.token,
-            pluginBaseUrl: this.pluginBaseUrl,
             characters: this.characters,
-            this_chid: this.this_chid
+            this_chid: this.this_chid,
+            branchGraphService: this.branchGraphService,
         });
 
         this.setupContextMenu();
@@ -85,11 +75,8 @@ export class TreeViewController {
         this.characters = dependencies.characters;
         this.this_chid = dependencies.this_chid;
         this.token = dependencies.token;
-        if (dependencies.pluginBaseUrl) {
-            this.pluginBaseUrl = dependencies.pluginBaseUrl;
-        }
-        if (dependencies.pluginClient) {
-            this.pluginClient = dependencies.pluginClient;
+        if (dependencies.branchGraphService) {
+            this.branchGraphService = dependencies.branchGraphService;
         }
         if (dependencies.selected_group !== undefined) {
             this.selected_group = dependencies.selected_group;
@@ -114,12 +101,7 @@ export class TreeViewController {
         }
     }
 
-    // =========================================================================
-    // DATA LOGIC - NOW USING PLUGIN
-    // =========================================================================
-
     async show() {
-        // Skip group chats - this extension only works with character chats
         if (this.selected_group) {
             toastr.warning('Group chats are not supported by this extension.');
             return;
@@ -130,43 +112,38 @@ export class TreeViewController {
             return;
         }
 
-        // Ensure currentChatFile is always a string
         this.currentChatFile = String(this.characters[this.this_chid]?.chat || '');
         if (!this.currentChatFile) {
             toastr.info('No active chat found.');
             return;
         }
 
-        // Check if current chat is a checkpoint
         if (isCheckpointChat(this.currentChatFile)) {
             toastr.info('You are viewing a checkpoint (bookmark) chat. Checkpoints are not tracked in the branch tree.', 'Chat Branches');
             return;
         }
 
-        // Get current chat UUID from metadata (use global chat_metadata, not character.chat_metadata)
         this.currentChatUUID = this.chat_metadata?.uuid || null;
 
         await this.renderModalSkeleton();
         await this.loadAndBuildTree();
     }
 
-    async loadAndBuildTree() {
+    async loadAndBuildTree(force = false) {
         this.setLoading(true);
 
         try {
-            // Get character ID for plugin query
-            const characterId = this.characters[this.this_chid]?.avatar;
-            
+            const character = this.characters[this.this_chid];
+            const characterId = character?.avatar;
             if (!characterId) {
                 throw new Error('Character ID not found');
             }
 
-            const treeData = await this.fetchTreeFromPlugin(characterId);
+            const treeData = await this.fetchTreeFromGraph(characterId, character?.name || '', force);
             this.applyTreeModel(treeData);
             this.populateRootDropdown();
             this.render();
             this.centerOnActive();
-
         } catch (err) {
             console.error('[Chat Branches] Error loading tree:', err);
         } finally {
@@ -174,11 +151,15 @@ export class TreeViewController {
         }
     }
 
-    async fetchTreeFromPlugin(characterId) {
-        if (!this.pluginClient) {
-            throw new Error('Plugin client is not available');
+    async fetchTreeFromGraph(characterId, characterName, force) {
+        if (!this.branchGraphService) {
+            throw new Error('Branch graph service is not available');
         }
-        return this.pluginClient.getTree(characterId, { force: true });
+        return this.branchGraphService.getTreeForCharacter({
+            avatarUrl: characterId,
+            characterName,
+            force,
+        });
     }
 
     applyTreeModel(treeData) {
@@ -198,10 +179,6 @@ export class TreeViewController {
         const activePath = collectExpandedPathIds(this.currentNode);
         activePath.forEach((id) => this.expandedUUIDs.add(id));
     }
-
-    // =========================================================================
-    // RENDERING LOGIC
-    // =========================================================================
 
     render() {
         const $container = $('#chat_tree_content');
@@ -231,7 +208,6 @@ export class TreeViewController {
             clearTimeout(this.lineRedrawTimer);
         }
 
-        // Mobile browsers may settle layout one frame later on incremental expand/collapse.
         this.lineRedrawRaf = requestAnimationFrame(() => {
             this.drawLines();
             this.lineRedrawTimer = setTimeout(() => this.drawLines(), 60);
@@ -242,31 +218,21 @@ export class TreeViewController {
         return renderRenameInput(node);
     }
 
-    // =========================================================================
-    // INTERACTION & EVENTS
-    // =========================================================================
-
     bindEvents() {
         bindTreeEvents(this);
     }
 
     async swapChat(chatName) {
         this.isSwappingChat = true;
-        
+
         try {
             await this.openCharacterChat(chatName);
-            
-            // Wait a moment for SillyTavern to fully load the chat and update chat_metadata
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Update our state from the newly loaded chat
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
             this.currentChatFile = String(this.characters[this.this_chid]?.chat || chatName);
             this.currentChatUUID = this.chat_metadata?.uuid || null;
-            
-            console.log('[Chat Branches] Swapped to chat:', this.currentChatFile, 'UUID:', this.currentChatUUID);
-            
+
             await this.loadAndBuildTree();
-            
             toastr.success('Chat switched successfully');
         } catch (err) {
             console.error('[Chat Branches] Error swapping chat:', err);
@@ -279,22 +245,21 @@ export class TreeViewController {
     centerOnActive() {
         const $active = $('.active-node');
         const $container = $('#chat_tree_content');
-        
+
         if ($active.length && $container.length) {
             const activeOffset = $active.offset();
             const containerOffset = $container.offset();
-            
+
             $container.scrollTop(
-                $container.scrollTop() + (activeOffset.top - containerOffset.top) - ($container.height() / 2) + ($active.height() / 2)
+                $container.scrollTop() + (activeOffset.top - containerOffset.top) - ($container.height() / 2) + ($active.height() / 2),
             );
             $container.scrollLeft(
-                $container.scrollLeft() + (activeOffset.left - containerOffset.left) - ($container.width() / 2) + ($active.width() / 2)
+                $container.scrollLeft() + (activeOffset.left - containerOffset.left) - ($container.width() / 2) + ($active.width() / 2),
             );
         }
     }
 
     expandAllNodes() {
-        // Add all node IDs with children to expanded set
         for (const node of this.nodeMap.values()) {
             if (node.children && node.children.length > 0) {
                 this.expandedUUIDs.add(node.id);
@@ -305,15 +270,10 @@ export class TreeViewController {
     }
 
     collapseAllNodes() {
-        // Clear all expanded nodes
         this.expandedUUIDs.clear();
         this.render();
         this.refreshLines();
     }
-
-    // =========================================================================
-    // RENAME FUNCTIONALITY
-    // =========================================================================
 
     startRename(uuid) {
         startRenameFlow(this, uuid);
@@ -327,10 +287,6 @@ export class TreeViewController {
         cancelRenameFlow(this);
     }
 
-    // =========================================================================
-    // ROOT DROPDOWN FUNCTIONALITY
-    // =========================================================================
-
     populateRootDropdown() {
         populateRoots(this);
     }
@@ -339,52 +295,32 @@ export class TreeViewController {
         await handleRootChangeSelection(this, rootUUID);
     }
 
-    // =========================================================================
-    // UTILITIES
-    // =========================================================================
-
-    /**
-     * Verify if a chat exists for the current character
-     * @param {string} chatName - The chat name to verify
-     * @returns {Promise<boolean>} - True if the chat exists
-     */
     async verifyChatExists(chatName) {
         if (!this.characters[this.this_chid]) {
             return false;
         }
 
-        // Check the character's chat list
         const character = this.characters[this.this_chid];
-        
-        // Method 1: Check if chat is in the character's chat_items array
         if (character.chat_items && Array.isArray(character.chat_items)) {
-            const chatExists = character.chat_items.some(chat => {
-                // Chat items can be strings or objects with a file property
+            const chatExists = character.chat_items.some((chat) => {
                 const chatFile = typeof chat === 'object' ? chat.file : chat;
                 return chatFile === chatName;
             });
             if (chatExists) return true;
         }
 
-        // Method 2: Check via plugin tree service (more reliable)
         try {
-            if (this.pluginClient) {
-                const characterId = character.avatar;
-                const tree = await this.pluginClient.getTree(characterId, { force: true });
-                const findChatInTree = (nodes) => {
-                    for (const node of nodes) {
-                        if (node.chat_name === chatName) {
-                            return true;
-                        }
-                        if (node.children && node.children.length > 0) {
-                            if (findChatInTree(node.children)) {
-                                return true;
-                            }
-                        }
+            if (this.branchGraphService) {
+                const graph = await this.branchGraphService.getGraphForCharacter({
+                    avatarUrl: character.avatar,
+                    characterName: character.name || '',
+                });
+
+                for (const node of graph.nodesById.values()) {
+                    if (node.chat_name === chatName) {
+                        return true;
                     }
-                    return false;
-                };
-                return findChatInTree(tree || []);
+                }
             }
         } catch (error) {
             console.error('[Chat Branches] Error verifying chat existence:', error);
@@ -418,24 +354,21 @@ export class TreeViewController {
         $('body').append(html);
 
         $('#chat_tree_close').on('click', () => this.hide());
-        
-        // Bind dropdown change event
+
         $('#chat_tree_root_dropdown').on('change', (e) => {
             const rootUUID = $(e.target).val();
             if (rootUUID) {
                 this.handleRootChange(rootUUID);
             }
         });
-        
+
         $('#chat_tree_overlay').on('click', (e) => {
-            // Only close if clicking directly on overlay (not when panning or just finished panning)
-            if(e.target.id === 'chat_tree_overlay' && !this.isPanning && !this.wasPanning) {
+            if (e.target.id === 'chat_tree_overlay' && !this.isPanning && !this.wasPanning) {
                 this.hide();
             }
-            // Reset the wasPanning flag after checking
             this.wasPanning = false;
         });
-        
+
         $(window).on('resize.chatTree', () => {
             clearTimeout(this.resizeTimer);
             this.resizeTimer = setTimeout(() => this.refreshLines(), 100);
@@ -456,28 +389,26 @@ export class TreeViewController {
                 token: this.token,
                 openCharacterChat: this.openCharacterChat,
                 extensionName: this.extensionName,
-                pluginBaseUrl: this.pluginBaseUrl,
-                onNavigate: () => this.hide()
+                branchGraphService: this.branchGraphService,
+                onNavigate: () => this.hide(),
             });
         } else {
-            // Update dependencies with fresh character data
             this.messageViewerPopup.updateDependencies({
                 characters: this.characters,
                 this_chid: this.this_chid,
                 token: this.token,
-                pluginBaseUrl: this.pluginBaseUrl
+                branchGraphService: this.branchGraphService,
             });
         }
-        // FIX: Attach to document.body so it floats above the tree modal
-        // instead of being trapped inside it.
+
         this.messageViewerPopup.show({
             uuid: node.id || node.uuid,
-            name: node.name || node.chat_name
+            name: node.name || node.chat_name,
         }, { anchorElement: document.body });
     }
 
     hide() {
-        $('#chat_tree_overlay').fadeOut(200, function() { $(this).remove(); });
+        $('#chat_tree_overlay').fadeOut(200, function () { $(this).remove(); });
         unbindTreeEvents(this);
         if (this.lineRedrawRaf) {
             cancelAnimationFrame(this.lineRedrawRaf);
@@ -489,10 +420,6 @@ export class TreeViewController {
         }
         this.cancelRename();
     }
-
-    // =========================================================================
-    // PANNING FUNCTIONALITY
-    // =========================================================================
 
     bindPanning() {
         bindTreePanning(this);
