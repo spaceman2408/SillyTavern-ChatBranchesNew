@@ -2,6 +2,30 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function waitForNextFrame() {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(resolve);
+        });
+    });
+}
+
+function normalizeChatName(name) {
+    return String(name || '').replace(/\.jsonl$/i, '').trim().toLowerCase();
+}
+
+async function waitForActiveChat(controller, targetName, timeoutMs = 3000, pollMs = 25) {
+    const target = normalizeChatName(targetName);
+    if (!target) return;
+
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        const active = normalizeChatName(controller.characters?.[controller.this_chid]?.chat);
+        if (active === target) return;
+        await wait(pollMs);
+    }
+}
+
 export function startRenameFlow(controller, uuid) {
     const node = controller.nodeMap.get(uuid);
     if (!node) return;
@@ -10,11 +34,11 @@ export function startRenameFlow(controller, uuid) {
     controller.renameNode = node;
     controller.render();
 
-    setTimeout(() => {
+    waitForNextFrame().then(() => {
         const $input = $(`.rename-input[data-uuid="${uuid}"]`);
         $input.focus();
         $input.select();
-    }, 50);
+    });
 }
 
 export async function confirmRenameFlow(controller, uuid, newName) {
@@ -54,10 +78,9 @@ export async function confirmRenameFlow(controller, uuid, newName) {
                 console.error('[Chat Branches] openCharacterChat failed:', error);
             }
 
-            await wait(300);
+            await waitForActiveChat(controller, newName);
             controller.currentChatFile = String(controller.characters[controller.this_chid]?.chat || newName);
             controller.currentChatUUID = controller.chat_metadata?.uuid || uuid;
-            await wait(200);
         }
 
         await controller.loadAndBuildTree();

@@ -22,6 +22,31 @@ export class MessageViewerController {
         this._handleGlobalEvents = this._handleGlobalEvents.bind(this);
     }
 
+    _normalizeChatName(name) {
+        return String(name || '').replace(/\.jsonl$/i, '').trim().toLowerCase();
+    }
+
+    _waitForNextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    async _waitForUiSettled() {
+        await this._waitForNextFrame();
+        await this._waitForNextFrame();
+    }
+
+    async _waitForActiveChat(targetName, timeoutMs = 3000) {
+        const target = this._normalizeChatName(targetName);
+        if (!target) return;
+
+        const started = Date.now();
+        while (Date.now() - started < timeoutMs) {
+            const active = this._normalizeChatName(this.deps?.characters?.[this.deps?.this_chid]?.chat);
+            if (active === target) return;
+            await this._waitForNextFrame();
+        }
+    }
+
     updateDependencies(newDeps) {
         if (this.state.isDestroyed) return;
         this.deps = { ...this.deps, ...newDeps };
@@ -192,7 +217,8 @@ export class MessageViewerController {
 
         $('body').append(html);
         this.$overlay = $('#message_viewer_overlay');
-        setTimeout(() => this.$overlay.addClass('visible'), 10);
+        await this._waitForNextFrame();
+        this.$overlay.addClass('visible');
     }
 
     _renderLoading() {
@@ -290,11 +316,11 @@ export class MessageViewerController {
 
         $(document).on('keydown.mv', this._handleGlobalEvents);
 
-        setTimeout(() => {
+        this._waitForUiSettled().then(() => {
             if (!this.state.isDestroyed && this.$overlay) {
                 $(document).on('click.mv', this._handleGlobalEvents);
             }
-        }, 100);
+        });
     }
 
     _unbindEvents() {
@@ -335,19 +361,16 @@ export class MessageViewerController {
 
         const currentChat = String(this.deps?.characters?.[this.deps?.this_chid]?.chat || '');
         const targetChat = String(this.state.chatName || '');
-        const normalizedCurrent = currentChat.replace(/\.jsonl$/i, '');
-        const normalizedTarget = targetChat.replace(/\.jsonl$/i, '');
+        const normalizedCurrent = this._normalizeChatName(currentChat);
+        const normalizedTarget = this._normalizeChatName(targetChat);
 
         if (this.deps.onNavigate) this.deps.onNavigate();
         this.hide();
-
-        // Let UI transition close overlays before scrolling chat.
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await this._waitForUiSettled();
 
         if (normalizedTarget && normalizedCurrent !== normalizedTarget && typeof this.deps?.openCharacterChat === 'function') {
-            await this.deps.openCharacterChat(normalizedTarget);
-            // Give ST a moment to render loaded messages before jumping.
-            await new Promise((resolve) => setTimeout(resolve, 120));
+            await this.deps.openCharacterChat(targetChat);
+            await this._waitForActiveChat(targetChat);
         }
 
         const { executeSlashCommandsOnChatInput } = await import('../../../../../../slash-commands.js');

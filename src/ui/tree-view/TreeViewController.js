@@ -13,6 +13,10 @@ function isCheckpointChat(chatName) {
     return chatName && chatName.includes('Checkpoint #');
 }
 
+function normalizeChatName(name) {
+    return String(name || '').replace(/\.jsonl$/i, '').trim().toLowerCase();
+}
+
 export class TreeViewController {
     constructor(dependencies) {
         this.characters = dependencies.characters;
@@ -222,12 +226,24 @@ export class TreeViewController {
         bindTreeEvents(this);
     }
 
+    async waitForActiveChat(chatName, timeoutMs = 3000) {
+        const target = normalizeChatName(chatName);
+        if (!target) return;
+
+        const started = Date.now();
+        while (Date.now() - started < timeoutMs) {
+            const active = normalizeChatName(this.characters?.[this.this_chid]?.chat);
+            if (active === target) return;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+    }
+
     async swapChat(chatName) {
         this.isSwappingChat = true;
 
         try {
             await this.openCharacterChat(chatName);
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await this.waitForActiveChat(chatName);
 
             this.currentChatFile = String(this.characters[this.this_chid]?.chat || chatName);
             this.currentChatUUID = this.chat_metadata?.uuid || null;
