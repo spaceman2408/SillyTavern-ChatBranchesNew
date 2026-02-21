@@ -1,5 +1,6 @@
 import { ctxSnapshot } from '../context.js';
 import { isCheckpointChat } from '../utils/checkpoints.js';
+import { userLog } from '../utils/user-log.js';
 
 export class BranchService {
     constructor({ pluginClient, settingsProvider }) {
@@ -23,11 +24,7 @@ export class BranchService {
         if (now - this.lastMissingPluginToastAt < cooldownMs) return;
         this.lastMissingPluginToastAt = now;
         const message = "Chat Branches can't find the plugin, did you install it? Install and try again.";
-        console.warn(`[ChatBranches] ${message}`);
-        toastr.warning(
-            message,
-            'Plugin Not Found',
-        );
+        userLog.warn(message, { toast: true, title: 'Plugin Not Found', dedupeKey: 'plugin-missing', dedupeMs: cooldownMs });
     }
 
     getContextKey(snapshot) {
@@ -73,6 +70,10 @@ export class BranchService {
                 current.chatMetadata.root_uuid = existing.root_uuid;
                 current.chatMetadata.parent_uuid = existing.parent_uuid;
                 await current.ctx.saveMetadata();
+                userLog.success(
+                    `Successfully found "${chatName}" by UUID: ${existing.uuid}`,
+                    { dedupeKey: `uuid-found:${existing.uuid}:${chatName}`, dedupeMs: 60000 },
+                );
                 return;
             }
 
@@ -100,6 +101,10 @@ export class BranchService {
                 branch_point: null,
                 created_at: Date.now(),
             });
+            userLog.success(
+                `Registered new chat storage for "${String(current.chatName || 'Unknown')}" (UUID: ${current.chatMetadata.uuid}).`,
+                { dedupeKey: `register:${current.chatMetadata.uuid}`, dedupeMs: 60000 },
+            );
         }
     }
 
@@ -109,6 +114,10 @@ export class BranchService {
         const uuid = snapshot.chatMetadata?.uuid;
         if (!uuid) return;
         await this.pluginClient.updateBranch(uuid, { chat_name: newName });
+        userLog.success(
+            `Chat rename synced in storage: "${String(newName)}" (UUID: ${uuid}).`,
+            { dedupeKey: `rename-sync:${uuid}:${String(newName)}`, dedupeMs: 15000 },
+        );
     }
 
     async syncChangedChatName() {
@@ -118,6 +127,10 @@ export class BranchService {
         const uuid = snapshot.chatMetadata?.uuid;
         if (!uuid || !snapshot.chatName) return;
         await this.pluginClient.updateBranch(uuid, { chat_name: snapshot.chatName });
+        userLog.info(
+            `Storage name verified for chat "${snapshot.chatName}" (UUID: ${uuid}).`,
+            { dedupeKey: `name-verify:${uuid}:${snapshot.chatName}`, dedupeMs: 120000 },
+        );
     }
 
     async handleChatDeleted(chatName) {
@@ -132,6 +145,7 @@ export class BranchService {
             const node = stack.pop();
             if (node.chat_name === chatName) {
                 await this.pluginClient.deleteBranch(node.uuid, true);
+                userLog.success(`Deleted storage branch for removed chat "${chatName}".`);
                 return;
             }
             if (Array.isArray(node.children)) stack.push(...node.children);
@@ -142,6 +156,7 @@ export class BranchService {
         const characterId = eventData?.character?.avatar;
         if (!characterId) return;
         await this.pluginClient.deleteCharacter(characterId);
+        userLog.success(`Deleted storage for removed character ID: ${characterId}.`);
     }
 
     async handleCharacterRenamed(oldAvatar, newAvatar) {
@@ -152,22 +167,35 @@ export class BranchService {
         }
 
         const tree = await this.pluginClient.getTree(oldAvatar, { force: true }).catch(() => []);
-        if (!Array.isArray(tree) || tree.length === 0) return;
+        if (!Array.isArray(tree) || tree.length === 0) {
+            userLog.info(`Character rename detected, but no storage rows were found for ${oldAvatar}.`);
+            return;
+        }
 
         const stack = [...tree];
+        let updated = 0;
         while (stack.length) {
             const node = stack.pop();
             const uuid = node?.uuid;
             if (uuid) {
-                await this.pluginClient.updateBranch(uuid, { character_id: newAvatar }).catch((error) => {
-                    console.warn('[ChatBranches] Failed to sync character rename for branch', uuid, error);
-                });
+                try {
+                    await this.pluginClient.updateBranch(uuid, { character_id: newAvatar });
+                    updated++;
+                } catch (error) {
+                    userLog.warn(`Failed syncing renamed character storage for branch UUID: ${uuid}.`);
+                    console.warn('[ChatBranches] Character rename sync error details:', error);
+                }
             }
 
             if (Array.isArray(node?.children) && node.children.length > 0) {
                 stack.push(...node.children);
             }
         }
+
+        userLog.success(
+            `Character rename storage update succeeded: ${oldAvatar} -> ${newAvatar} (${updated} branches).`,
+            { toast: true, dedupeKey: `char-rename:${oldAvatar}:${newAvatar}`, dedupeMs: 30000 },
+        );
     }
 
     async createBranchWithUUID(mesId) {

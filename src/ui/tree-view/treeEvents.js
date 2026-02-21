@@ -50,7 +50,12 @@ export function bindTreeEvents(controller) {
         .off('touchmove.chatTreeBlank touchend.chatTreeBlank touchcancel.chatTreeBlank');
     $(document).off('click.renameOutside');
 
+    const isRenameInteraction = (target) => {
+        return $(target).closest('.rename-input-container, .rename-input, .rename-actions, .rename-confirm, .rename-cancel').length > 0;
+    };
+
     $('#chat_tree_content').on('dblclick.treeNodeDblclick', '.tree-node', async function(e) {
+        if (isRenameInteraction(e.target)) return;
         e.stopPropagation();
         if (controller.isSwappingChat) return;
 
@@ -59,6 +64,15 @@ export function bindTreeEvents(controller) {
 
         $(this).addClass('loading-node');
         await controller.swapChat(name);
+    });
+
+    $('#chat_tree_content').on('click.renameInputFocus', '.rename-input', function(e) {
+        e.stopPropagation();
+        this.focus();
+    });
+
+    $('#chat_tree_content').on('mousedown.renameInputFocus', '.rename-input-container', function(e) {
+        e.stopPropagation();
     });
 
     $('#chat_tree_content').on('click.renameIcon', '.rename-icon', function(e) {
@@ -107,6 +121,7 @@ export function bindTreeEvents(controller) {
     const DOUBLE_TAP_DELAY = 300;
 
     $('#chat_tree_content').on('touchstart.chatTree', '.tree-node', function(e) {
+        if (isRenameInteraction(e.target)) return;
         if ($(e.target).closest('.expand-toggle').length) return;
 
         if (e.touches.length === 1) {
@@ -143,6 +158,7 @@ export function bindTreeEvents(controller) {
     });
 
     $('#chat_tree_content').on('touchend.chatTree', '.tree-node', async function(e) {
+        if (isRenameInteraction(e.target)) return;
         if ($(e.target).closest('.expand-toggle').length) return;
 
         const touchDuration = Date.now() - touchStartTime;
@@ -268,6 +284,8 @@ export function unbindTreeEvents(controller) {
     $('#chat_tree_content').off('dblclick.treeNodeDblclick');
     $('#chat_tree_content').off('contextmenu.chatTree');
     $('#chat_tree_content').off('click.renameIcon');
+    $('#chat_tree_content').off('click.renameInputFocus');
+    $('#chat_tree_content').off('mousedown.renameInputFocus');
     $('#chat_tree_content').off('keydown.renameInput');
     $('#chat_tree_content').off('click.renameConfirm');
     $('#chat_tree_content').off('click.renameCancel');

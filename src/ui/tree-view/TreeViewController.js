@@ -8,6 +8,7 @@ import { bindTreeEvents, bindTreePanning, unbindTreeEvents } from './treeEvents.
 import { buildTreeMarkup, loadingMarkup, renderNodeRecursive, renderRenameInput } from './treeRender.js';
 import { cancelRenameFlow, confirmRenameFlow, startRenameFlow } from './treeRenameFlow.js';
 import { handleRootChange as handleRootChangeSelection, populateRootDropdown as populateRoots } from './treeRootSelector.js';
+import { userLog } from '../../utils/user-log.js';
 
 /**
  * Check if a chat is a checkpoint (bookmark)
@@ -263,13 +264,17 @@ export class TreeViewController {
             this.currentChatFile = String(this.characters[this.this_chid]?.chat || chatName);
             this.currentChatUUID = this.chat_metadata?.uuid || null;
             
-            console.log('[Chat Branches] Swapped to chat:', this.currentChatFile, 'UUID:', this.currentChatUUID);
+            userLog.info(
+                `Switched to chat "${this.currentChatFile}" (UUID: ${this.currentChatUUID || 'missing'}).`,
+                { dedupeKey: `tree-swap:${this.currentChatUUID || this.currentChatFile}`, dedupeMs: 10000 },
+            );
             
             await this.loadAndBuildTree();
             
             toastr.success('Chat switched successfully');
         } catch (err) {
             console.error('[Chat Branches] Error swapping chat:', err);
+            userLog.error(`Failed to switch chat "${chatName}".`, { toast: true });
             toastr.error('Failed to swap chat');
         } finally {
             this.isSwappingChat = false;

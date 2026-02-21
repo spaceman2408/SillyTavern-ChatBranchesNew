@@ -2,6 +2,7 @@
  * ChatRenameHandler - Handles rename functionality for chat branches
  * Manages validation, plugin updates, and file renaming operations
  */
+import { userLog } from '../../utils/user-log.js';
 
 export class RenameController {
     constructor(dependencies) {
@@ -171,8 +172,6 @@ export class RenameController {
             renamed_file: `${stringNewName}.jsonl`,
         };
 
-        console.log('[ChatRenameHandler] Sending rename request:', body);
-
         const response = await fetch('/api/chats/rename', {
             method: 'POST',
             headers: {
@@ -191,6 +190,7 @@ export class RenameController {
             } catch (e) {
                 errorDetails = await response.text();
             }
+            userLog.warn(`Chat rename failed at API layer (${response.status}).`);
             console.error('[ChatRenameHandler] Rename API error:', response.status, errorDetails);
             const errorString = String(errorDetails);
             
@@ -216,7 +216,7 @@ export class RenameController {
             throw new Error(data.error || 'Server returned an error');
         }
 
-        console.log('[ChatRenameHandler] Rename successful:', data);
+        userLog.success(`Chat rename succeeded: "${stringOldName}" -> "${stringNewName}".`);
 
         // After renaming, restore the UUID in the chat metadata
         await this.restoreUUIDMetadata(character.avatar, stringNewName, uuid);
@@ -235,8 +235,6 @@ export class RenameController {
      */
     async restoreUUIDMetadata(characterAvatar, chatName, uuid) {
         try {
-            console.log('[ChatRenameHandler] Restoring UUID metadata:', uuid, 'to chat:', chatName);
-            
             // Ensure chatName doesn't have .jsonl extension
             const cleanChatName = chatName.replace(/\.jsonl$/i, '');
             
@@ -297,13 +295,15 @@ export class RenameController {
             });
 
             if (saveResponse.ok) {
-                console.log('[ChatRenameHandler] UUID metadata restored successfully');
+                userLog.success(`UUID metadata restored for "${cleanChatName}" (UUID: ${uuid}).`);
             } else {
                 const errorText = await saveResponse.text();
                 console.warn('[ChatRenameHandler] Failed to save UUID metadata:', saveResponse.status, errorText);
+                userLog.warn(`Chat rename succeeded, but UUID metadata restore failed for "${cleanChatName}".`);
             }
         } catch (error) {
             console.error('[ChatRenameHandler] Error restoring UUID metadata:', error);
+            userLog.warn('Chat rename succeeded, but UUID metadata restore encountered an error.');
             // Don't throw - this is a non-critical operation
         }
     }
@@ -323,10 +323,16 @@ export class RenameController {
             // Step 2: Rename the actual chat file and restore UUID metadata
             await this.renameChatFile(oldName, newName, uuid);
 
+            userLog.success(
+                `Storage rename fully synced for "${String(newName)}" (UUID: ${uuid}).`,
+                { dedupeKey: `rename-full:${uuid}:${String(newName)}`, dedupeMs: 10000 },
+            );
+
             // Success
             return;
         } catch (error) {
             console.error('[ChatRenameHandler] Rename failed:', error);
+            userLog.error(`Chat rename failed: ${error.message || 'Unknown error'}`, { toast: true });
             throw new Error(error.message || 'Failed to rename chat');
         }
     }

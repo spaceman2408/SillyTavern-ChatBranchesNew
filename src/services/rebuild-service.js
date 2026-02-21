@@ -1,5 +1,6 @@
 import { ctxSnapshot } from '../context.js';
 import { isCheckpointChat } from '../utils/checkpoints.js';
+import { userLog } from '../utils/user-log.js';
 
 export class RebuildService {
     constructor({ pluginClient, chatService, getSettings }) {
@@ -12,16 +13,19 @@ export class RebuildService {
     async showRebuildDialog() {
         if (this.isRebuilding) {
             toastr.warning('Rebuild already in progress', 'Storage Rebuild');
+            userLog.info('Storage rebuild is already running.');
             return;
         }
 
         const { ctx, groupId, character } = ctxSnapshot();
         if (groupId) {
             toastr.error('Group chats are not supported by this extension', 'Storage Rebuild');
+            userLog.warn('Storage rebuild is unavailable for group chats.');
             return;
         }
         if (!character) {
             toastr.error('No character selected', 'Storage Rebuild');
+            userLog.warn('Storage rebuild aborted: no character selected.');
             return;
         }
 
@@ -74,11 +78,16 @@ export class RebuildService {
                 + `${result.skippedInvalidChat} invalid chat files.</p>`
                 + '<p>Rebuild uses existing metadata only; chats missing UUID metadata were skipped.</p>',
             );
+            userLog.success(
+                `Rebuild complete for ${character.name}: ${result.processed} branches rebuilt, ${result.skippedNoUuid} skipped without UUID, ${result.skippedCheckpoint} checkpoints, ${result.skippedInvalidChat} invalid chats.`,
+                { toast: true, dedupeKey: `rebuild:${character.avatar}`, dedupeMs: 15000 },
+            );
         } catch (error) {
             allowProgressClose = true;
             await progressPopup.completeAffirmative();
             await progressPopupPromise;
             await ctx.Popup.show.text('Rebuild Failed', `<p>${error.message}</p>`);
+            userLog.error(`Rebuild failed: ${error.message}`, { toast: true, title: 'Storage Rebuild' });
         } finally {
             this.isRebuilding = false;
         }
