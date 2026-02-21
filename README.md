@@ -73,6 +73,21 @@ If the plugin is not detected, tree actions and rebuild are disabled until it is
 2. Restart SillyTavern server (you must restart the console not refresh the browser)
 3. The extension will auto-detect plugin availability and enable controls
 
+## Want to use it without the plugin?
+
+You can test the no-plugin version from this branch:
+
+1. Go to **Extensions**
+2. Click **Manage Extensions**
+3. Click **Change Branch**
+4. Select `branch no-plugin-early-testing-use-at-your-own-risk`
+
+### Performance notes (no-plugin mode)
+
+- The extension builds the tree directly from chat files, so first-load time can be slower on very populated characters.
+- If a character has hundreds or thousands of chats, tree load/reload can take noticeably longer.
+- If you want near-instant load times, use the server plugin.
+
 ## How to Use
 
 You can find the Chat Branches button in two places: 
