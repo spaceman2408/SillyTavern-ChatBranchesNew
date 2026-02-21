@@ -44,6 +44,7 @@ export class TreeViewController {
         this.wasPanning = false;
         this.panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
         this.isSwappingChat = false;
+        this.isOpeningTree = false;
         this.isRenaming = false;
         this.renameNode = null;
 
@@ -106,6 +107,12 @@ export class TreeViewController {
     }
 
     async show() {
+        if (this.isOpeningTree || $('#chat_tree_overlay').length) {
+            return;
+        }
+
+        this.isOpeningTree = true;
+        try {
         if (this.selected_group) {
             toastr.warning('Group chats are not supported by this extension.');
             return;
@@ -131,6 +138,9 @@ export class TreeViewController {
 
         await this.renderModalSkeleton();
         await this.loadAndBuildTree();
+        } finally {
+            this.isOpeningTree = false;
+        }
     }
 
     async loadAndBuildTree(force = false) {

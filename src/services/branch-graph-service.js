@@ -17,8 +17,12 @@ export class BranchGraphService {
         }
 
         const startedAt = performance.now();
+        const fetchStartedAt = performance.now();
         const chats = await this.chatService.listCharacterChats(characterId, false, true, signal);
+        const fetchMs = Math.round((performance.now() - fetchStartedAt) * 10) / 10;
+        const buildStartedAt = performance.now();
         const graph = this.buildGraph(characterId, characterName, chats);
+        const buildMs = Math.round((performance.now() - buildStartedAt) * 10) / 10;
         this.setCachedGraph(characterId, graph);
         const durationMs = Math.round((performance.now() - startedAt) * 10) / 10;
 
@@ -29,6 +33,8 @@ export class BranchGraphService {
             roots: graph.roots.length,
             chatsIndexed: Array.isArray(chats) ? chats.length : 0,
             forced: Boolean(force),
+            fetchMs,
+            buildMs,
             durationMs,
         });
 

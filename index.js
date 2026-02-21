@@ -133,14 +133,14 @@ function registerEvents() {
         const before = ctxSnapshot();
 
         syncCharacterSwapInvalidation();
-        await branchService.ensureChatUUID();
-        invalidateCurrentCharacterGraph();
+        const metadataUpdated = await branchService.ensureChatUUID();
 
         const after = ctxSnapshot();
         logInfo(`Chat changed to "${after.chatName || '(unknown)'}"`, {
             uuid: after.chatMetadata?.uuid || null,
             previousChat: before.chatName || null,
             previousUuid: before.chatMetadata?.uuid || null,
+            metadataUpdated,
         });
 
         treeView.updateDependencies(treeDependencies());

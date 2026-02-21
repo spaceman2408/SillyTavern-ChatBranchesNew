@@ -39,28 +39,34 @@ export class BranchService {
 
     async ensureChatUUID() {
         const snapshot = ctxSnapshot();
-        if (!this.isCharacterChatContext(snapshot)) return;
-        if (!snapshot.chatMetadata) return;
-        if (!this.isExtensionActive()) return;
-        if (isCheckpointChat(snapshot.chatName)) return;
+        if (!this.isCharacterChatContext(snapshot)) return false;
+        if (!snapshot.chatMetadata) return false;
+        if (!this.isExtensionActive()) return false;
+        if (isCheckpointChat(snapshot.chatName)) return false;
 
         const contextKey = this.getContextKey(snapshot);
         const avatar = snapshot.character?.avatar || null;
+        let changed = false;
 
         if (!snapshot.chatMetadata.uuid) {
             snapshot.chatMetadata.uuid = snapshot.ctx.uuidv4();
+            changed = true;
         }
 
-        if (!this.isSameContext(contextKey)) return;
+        if (!this.isSameContext(contextKey)) return false;
         const current = ctxSnapshot();
-        if (!this.isCharacterChatContext(current) || !current.chatMetadata) return;
+        if (!this.isCharacterChatContext(current) || !current.chatMetadata) return false;
 
         if (!current.chatMetadata.root_uuid) {
             current.chatMetadata.root_uuid = current.chatMetadata.uuid;
+            changed = true;
         }
+
+        if (!changed) return false;
 
         await current.ctx.saveMetadata();
         this.invalidateCharacterGraph(avatar);
+        return true;
     }
 
     async syncRename(_newName) {
