@@ -171,6 +171,11 @@ export class TreeViewController {
         this.nodeMap = nodeMap;
         this.allTreeRoots = allTreeRoots;
 
+        const uuidCandidate = this.currentChatUUID ? this.nodeMap.get(this.currentChatUUID) : null;
+        if (uuidCandidate) {
+            console.info(`[Chat Branches] Successfully found ${uuidCandidate.name} by uuid: ${this.currentChatUUID}`);
+        }
+
         this.currentNode = findCurrentNode(this.nodeMap, this.currentChatUUID, this.currentChatFile);
         if (!this.currentNode && this.nodeMap.size > 0) {
             this.currentNode = this.nodeMap.values().next().value;
@@ -249,6 +254,9 @@ export class TreeViewController {
             this.currentChatUUID = this.chat_metadata?.uuid || null;
 
             await this.loadAndBuildTree();
+            console.info(`[Chat Branches] Chat switch completed: "${this.currentChatFile}"`, {
+                uuid: this.currentChatUUID || null,
+            });
             toastr.success('Chat switched successfully');
         } catch (err) {
             console.error('[Chat Branches] Error swapping chat:', err);

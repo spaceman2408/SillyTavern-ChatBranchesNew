@@ -84,6 +84,9 @@ export async function confirmRenameFlow(controller, uuid, newName) {
         }
 
         await controller.loadAndBuildTree();
+        console.info(`[Chat Branches] Chat rename completed: "${oldName}" -> "${newName}"`, {
+            uuid,
+        });
         toastr.success('Chat renamed successfully');
     } catch (error) {
         console.error('[Chat Branches] Rename failed:', error);

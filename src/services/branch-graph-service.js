@@ -16,9 +16,22 @@ export class BranchGraphService {
             if (cached) return cached;
         }
 
+        const startedAt = performance.now();
         const chats = await this.chatService.listCharacterChats(characterId, false, true, signal);
         const graph = this.buildGraph(characterId, characterName, chats);
         this.setCachedGraph(characterId, graph);
+        const durationMs = Math.round((performance.now() - startedAt) * 10) / 10;
+
+        console.info('[Chat Branches] Branch graph cache built successfully', {
+            characterId,
+            characterName: characterName || null,
+            nodes: graph.nodesById.size,
+            roots: graph.roots.length,
+            chatsIndexed: Array.isArray(chats) ? chats.length : 0,
+            forced: Boolean(force),
+            durationMs,
+        });
+
         return graph;
     }
 

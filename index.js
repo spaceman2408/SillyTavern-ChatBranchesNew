@@ -9,6 +9,15 @@ import { SettingsPanel } from './src/ui/settings-panel.js';
 import { ButtonManager } from './src/ui/button-manager.js';
 import { TreeViewController } from './src/ui/tree-view/TreeViewController.js';
 
+const LOG_PREFIX = '[Chat Branches]';
+const logInfo = (message, meta = null) => {
+    if (meta) {
+        console.info(`${LOG_PREFIX} ${message}`, meta);
+        return;
+    }
+    console.info(`${LOG_PREFIX} ${message}`);
+};
+
 const store = createStore();
 const settings = ensureSettings();
 
@@ -121,9 +130,19 @@ function registerEvents() {
     });
 
     source.on(events.CHAT_CHANGED, async () => {
+        const before = ctxSnapshot();
+
         syncCharacterSwapInvalidation();
         await branchService.ensureChatUUID();
         invalidateCurrentCharacterGraph();
+
+        const after = ctxSnapshot();
+        logInfo(`Chat changed to "${after.chatName || '(unknown)'}"`, {
+            uuid: after.chatMetadata?.uuid || null,
+            previousChat: before.chatName || null,
+            previousUuid: before.chatMetadata?.uuid || null,
+        });
+
         treeView.updateDependencies(treeDependencies());
         buttonManager.injectOptionsButton();
         buttonManager.onMessageEvent();
@@ -140,6 +159,11 @@ function registerEvents() {
     source.on(events.CHAT_RENAMED, async (name) => {
         await branchService.syncRename(name);
         invalidateCurrentCharacterGraph();
+
+        const snapshot = ctxSnapshot();
+        logInfo(`Chat rename synced: "${name || snapshot.chatName || '(unknown)'}"`, {
+            uuid: snapshot.chatMetadata?.uuid || null,
+        });
     });
 
     source.on(events.CHAT_DELETED, async (chatName) => {
