@@ -134,22 +134,35 @@ function registerEvents() {
     const { ctx } = ctxSnapshot();
     const source = ctx.eventSource;
     const events = ctx.eventTypes;
+    const on = (eventName, handler) => {
+        if (!eventName) return;
+        source.on(eventName, handler);
+    };
 
-    source.on(events.CHAT_CREATED, () => branchService.ensureChatUUID());
-    source.on(events.CHAT_CHANGED, async () => {
+    on(events.CHAT_CREATED, () => branchService.ensureChatUUID());
+    on(events.CHAT_CHANGED, async () => {
         await branchService.ensureChatUUID();
         await branchService.syncChangedChatName();
         treeView.updateDependencies(treeDependencies());
         buttonManager.injectOptionsButton();
         buttonManager.onMessageEvent();
     });
-    source.on(events.CHAT_RENAMED, (name) => branchService.syncRename(name));
-    source.on(events.CHAT_DELETED, (chatName) => branchService.handleChatDeleted(chatName));
-    source.on(events.CHARACTER_DELETED, (data) => branchService.handleCharacterDeleted(data));
+    on(events.CHAT_RENAMED, (name) => branchService.syncRename(name));
+    on(events.CHAT_DELETED, (chatName) => branchService.handleChatDeleted(chatName));
+    on(events.CHARACTER_DELETED, (data) => branchService.handleCharacterDeleted(data));
+    on(events.CHARACTER_RENAMED, async (oldAvatar, newAvatar) => {
+        await branchService.handleCharacterRenamed(oldAvatar, newAvatar);
+        await branchService.ensureChatUUID();
+        await branchService.syncChangedChatName();
+    });
+    on(events.CHARACTER_EDITED, async () => {
+        await branchService.ensureChatUUID();
+        await branchService.syncChangedChatName();
+    });
 
-    source.on(events.MESSAGE_RECEIVED, () => buttonManager.onMessageEvent());
-    source.on(events.MESSAGE_SENT, () => buttonManager.onMessageEvent());
-    source.on(events.MESSAGE_UPDATED, () => buttonManager.onMessageEvent());
+    on(events.MESSAGE_RECEIVED, () => buttonManager.onMessageEvent());
+    on(events.MESSAGE_SENT, () => buttonManager.onMessageEvent());
+    on(events.MESSAGE_UPDATED, () => buttonManager.onMessageEvent());
 }
 
 jQuery(async () => {

@@ -144,6 +144,32 @@ export class BranchService {
         await this.pluginClient.deleteCharacter(characterId);
     }
 
+    async handleCharacterRenamed(oldAvatar, newAvatar) {
+        if (!oldAvatar || !newAvatar || oldAvatar === newAvatar) return;
+        if (!this.isExtensionActive()) {
+            this.maybeNotifyMissingPlugin();
+            return;
+        }
+
+        const tree = await this.pluginClient.getTree(oldAvatar, { force: true }).catch(() => []);
+        if (!Array.isArray(tree) || tree.length === 0) return;
+
+        const stack = [...tree];
+        while (stack.length) {
+            const node = stack.pop();
+            const uuid = node?.uuid;
+            if (uuid) {
+                await this.pluginClient.updateBranch(uuid, { character_id: newAvatar }).catch((error) => {
+                    console.warn('[ChatBranches] Failed to sync character rename for branch', uuid, error);
+                });
+            }
+
+            if (Array.isArray(node?.children) && node.children.length > 0) {
+                stack.push(...node.children);
+            }
+        }
+    }
+
     async createBranchWithUUID(mesId) {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot) || !this.isExtensionActive()) return null;
