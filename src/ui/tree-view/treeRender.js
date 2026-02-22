@@ -31,7 +31,7 @@ function getNodeState(controller, node) {
 }
 
 function renderNodeCard(node, state) {
-    const displayLabel = node.name.length > 15 ? `${node.name.substring(0, 15)}...` : node.name;
+    const displayLabel = node.name;
     const branchPointLabel = getBranchPointLabel(node);
     const hasBranchPoint = branchPointLabel !== null && branchPointLabel !== undefined;
     const branchPointTitle = hasBranchPoint ? ` (Branch at msg ${branchPointLabel})` : '';
