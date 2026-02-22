@@ -19,6 +19,47 @@ function getBranchPointLabel(node) {
     return Math.max(0, raw);
 }
 
+function getNodeState(controller, node) {
+    const isActiveByUUID = controller.currentChatUUID && node.id === controller.currentChatUUID;
+    const isActiveByName = node.name === controller.currentChatFile;
+    return {
+        isActive: isActiveByUUID || isActiveByName,
+        isExpanded: controller.expandedUUIDs.has(node.id),
+        hasChildren: node.children && node.children.length > 0,
+        isRenaming: controller.isRenaming && controller.renameNode?.id === node.id,
+    };
+}
+
+function renderNodeCard(node, state) {
+    const displayLabel = node.name.length > 15 ? `${node.name.substring(0, 15)}...` : node.name;
+    const branchPointLabel = getBranchPointLabel(node);
+    const hasBranchPoint = branchPointLabel !== null && branchPointLabel !== undefined;
+    const branchPointTitle = hasBranchPoint ? ` (Branch at msg ${branchPointLabel})` : '';
+
+    return `
+        <div class="tree-node ${state.isActive ? 'active-node' : ''} ${state.isRenaming ? 'renaming' : ''}"
+            data-uuid="${node.id}"
+            data-name="${node.name}"
+            title="${node.name}${branchPointTitle}">
+            <div class="node-content">
+                <span class="node-icon"><i class="fa-solid fa-message"></i></span>
+                ${state.isRenaming ? renderRenameInput(node) : `
+                    <span class="node-label">${displayLabel}</span>
+                    <span class="rename-icon" data-uuid="${node.id}" title="Rename chat">
+                        <i class="fa-solid fa-pencil"></i>
+                    </span>
+                `}
+            </div>
+
+            ${state.hasChildren ? `
+                <div class="expand-toggle ${state.isExpanded ? 'open' : ''}">
+                    <i class="fa-solid ${state.isExpanded ? 'fa-minus' : 'fa-plus'}"></i>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
 export function buildTreeMarkup(controller) {
     if (controller.treeRoots.length === 0) {
         return '<div class="chat-tree-empty">No connected chat history found.</div>';
@@ -34,47 +75,59 @@ export function buildTreeMarkup(controller) {
     `;
 }
 
+function renderTopDownNodeShell(controller, layoutNode) {
+    const sourceNode = controller.nodeMap.get(layoutNode.id);
+    if (!sourceNode) return '';
+
+    const state = getNodeState(controller, sourceNode);
+    const left = Number.isFinite(layoutNode.x) ? layoutNode.x : 0;
+    const top = Number.isFinite(layoutNode.y) ? layoutNode.y : 0;
+    const shellClass = state.isRenaming ? 'tree-node-shell renaming-shell' : 'tree-node-shell';
+
+    return `
+        <div class="${shellClass}" data-uuid="${sourceNode.id}" style="left:${left}px;top:${top}px;">
+            <div class="tree-entry">
+                ${renderNodeCard(sourceNode, state)}
+            </div>
+        </div>
+    `;
+}
+
+export function buildTopDownMarkup(controller, layoutResult) {
+    if (controller.treeRoots.length === 0) {
+        return '<div class="chat-tree-empty">No connected chat history found.</div>';
+    }
+
+    const canvasWidth = Math.max(1, Math.ceil(layoutResult?.bounds?.width || 0));
+    const canvasHeight = Math.max(1, Math.ceil(layoutResult?.bounds?.height || 0));
+    const nodes = Array.isArray(layoutResult?.nodes) ? layoutResult.nodes : [];
+    const wrapperClass = controller.isRenaming
+        ? `${getLayoutClass(controller.layoutVariant)} renaming-active`
+        : getLayoutClass(controller.layoutVariant);
+
+    return `
+        <div class="family-tree-wrapper ${wrapperClass}"
+            style="--tree-topdown-canvas-w:${canvasWidth}px;--tree-topdown-canvas-h:${canvasHeight}px;">
+            <svg id="chat_tree_lines"></svg>
+            <div class="family-tree-inner">
+                <div class="tree-node-layer" style="width:${canvasWidth}px;height:${canvasHeight}px;">
+                    ${nodes.map((node) => renderTopDownNodeShell(controller, node)).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 export function renderNodeRecursive(controller, node, level) {
-    const isActiveByUUID = controller.currentChatUUID && node.id === controller.currentChatUUID;
-    const isActiveByName = node.name === controller.currentChatFile;
-    const isActive = isActiveByUUID || isActiveByName;
-
-    const isExpanded = controller.expandedUUIDs.has(node.id);
-    const hasChildren = node.children && node.children.length > 0;
-    const isRenaming = controller.isRenaming && controller.renameNode?.id === node.id;
-
-    const displayLabel = node.name.length > 15 ? `${node.name.substring(0, 15)}...` : node.name;
-    const branchPointLabel = getBranchPointLabel(node);
-    const hasBranchPoint = branchPointLabel !== null && branchPointLabel !== undefined;
-    const branchPointTitle = hasBranchPoint ? ` (Branch at msg ${branchPointLabel})` : '';
+    const state = getNodeState(controller, node);
 
     return `
         <div class="tree-branch">
             <div class="tree-entry">
-                    <div class="tree-node ${isActive ? 'active-node' : ''} ${isRenaming ? 'renaming' : ''}"
-                    data-uuid="${node.id}"
-                    data-name="${node.name}"
-                    title="${node.name}${branchPointTitle}">
-
-                    <div class="node-content">
-                        <span class="node-icon"><i class="fa-solid fa-message"></i></span>
-                        ${isRenaming ? renderRenameInput(node) : `
-                            <span class="node-label">${displayLabel}</span>
-                            <span class="rename-icon" data-uuid="${node.id}" title="Rename chat">
-                                <i class="fa-solid fa-pencil"></i>
-                            </span>
-                        `}
-                    </div>
-
-                    ${hasChildren ? `
-                        <div class="expand-toggle ${isExpanded ? 'open' : ''}">
-                            <i class="fa-solid ${isExpanded ? 'fa-minus' : 'fa-plus'}"></i>
-                        </div>
-                    ` : ''}
-                </div>
+                ${renderNodeCard(node, state)}
             </div>
 
-            ${(hasChildren && isExpanded) ? `
+            ${(state.hasChildren && state.isExpanded) ? `
                 <div class="tree-children">
                     ${node.children.map((child) => renderNodeRecursive(controller, child, level + 1)).join('')}
                 </div>

@@ -5,7 +5,8 @@ import { drawTreeLines } from './treeLineDrawer.js';
 import { collectExpandedPathIds, buildTreeModel, findCurrentNode, isolateTreeForNode } from './treeModel.js';
 import { ensureTreeStylesLoaded } from './treeLayout.js';
 import { bindTreeEvents, bindTreePanning, unbindTreeEvents } from './treeEvents.js';
-import { buildTreeMarkup, loadingMarkup, renderNodeRecursive, renderRenameInput } from './treeRender.js';
+import { buildTopDownMarkup, buildTreeMarkup, loadingMarkup, renderNodeRecursive, renderRenameInput } from './treeRender.js';
+import { computeTopDownLayout } from './topDownLayout.js';
 import { cancelRenameFlow, confirmRenameFlow, startRenameFlow } from './treeRenameFlow.js';
 import { handleRootChange as handleRootChangeSelection, populateRootDropdown as populateRoots } from './treeRootSelector.js';
 
@@ -15,6 +16,19 @@ function isCheckpointChat(chatName) {
 
 function normalizeChatName(name) {
     return String(name || '').replace(/\.jsonl$/i, '').trim().toLowerCase();
+}
+
+function parseCssPxVar(varName, fallback) {
+    const cssValue = getComputedStyle(document.documentElement).getPropertyValue(varName);
+    const parsed = Number.parseFloat(cssValue);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function buildTopDownLayoutKey(treeRoots, expandedUUIDs) {
+    const roots = Array.isArray(treeRoots) ? treeRoots : [];
+    const rootIds = roots.map((root) => String(root?.id || '')).join('|');
+    const expanded = [...(expandedUUIDs || new Set())].map((id) => String(id)).sort().join('|');
+    return `${rootIds}::${expanded}`;
 }
 
 export class TreeViewController {
@@ -47,6 +61,8 @@ export class TreeViewController {
         this.isOpeningTree = false;
         this.isRenaming = false;
         this.renameNode = null;
+        this.topDownLayout = null;
+        this.topDownLayoutKey = null;
 
         this.contextMenu = new ContextMenu();
         this.messageViewerPopup = null;
@@ -97,6 +113,10 @@ export class TreeViewController {
 
     applyLayoutVariant() {
         ensureTreeStylesLoaded(this.extensionName, this.layoutVariant);
+        if (this.layoutVariant !== 'top-down') {
+            this.topDownLayout = null;
+            this.topDownLayoutKey = null;
+        }
         if ($('#chat_tree_overlay').length) {
             if (this.treeRoots.length > 0) {
                 this.render();
@@ -201,10 +221,47 @@ export class TreeViewController {
 
     render() {
         const $container = $('#chat_tree_content');
-        $container.html(buildTreeMarkup(this));
+        if (this.layoutVariant === 'top-down') {
+            const layoutKey = buildTopDownLayoutKey(this.treeRoots, this.expandedUUIDs);
+            const canReuseLayout = Boolean(
+                this.isRenaming
+                && this.topDownLayout
+                && this.topDownLayoutKey === layoutKey,
+            );
+
+            if (!canReuseLayout) {
+                this.topDownLayout = computeTopDownLayout({
+                    roots: this.treeRoots,
+                    expandedUUIDs: this.expandedUUIDs,
+                    activeNodeId: this.currentChatUUID,
+                    activeNodeName: this.currentChatFile,
+                    metrics: {
+                        nodeWidth: parseCssPxVar('--tree-node-w', 120),
+                        nodeHeight: 44,
+                    },
+                    spacing: {
+                        siblingGap: parseCssPxVar('--tree-topdown-sibling-gap', 12),
+                        levelGap: parseCssPxVar('--tree-topdown-level-gap', 68),
+                        padding: parseCssPxVar('--tree-topdown-padding', 36),
+                        rootGap: parseCssPxVar('--tree-topdown-root-gap', 24),
+                    },
+                });
+                this.topDownLayoutKey = layoutKey;
+            }
+
+            $container.html(buildTopDownMarkup(this, this.topDownLayout));
+        } else {
+            this.topDownLayout = null;
+            this.topDownLayoutKey = null;
+            $container.html(buildTreeMarkup(this));
+        }
+
         if (this.treeRoots.length === 0) {
+            this.topDownLayout = null;
+            this.topDownLayoutKey = null;
             return;
         }
+
         this.refreshLines();
         this.bindEvents();
     }
@@ -214,7 +271,9 @@ export class TreeViewController {
     }
 
     drawLines() {
-        drawTreeLines(this.layoutVariant);
+        drawTreeLines(this.layoutVariant, {
+            layout: this.topDownLayout,
+        });
     }
 
     refreshLines() {
@@ -453,6 +512,8 @@ export class TreeViewController {
             this.lineRedrawTimer = null;
         }
         this.cancelRename();
+        this.topDownLayout = null;
+        this.topDownLayoutKey = null;
     }
 
     bindPanning() {

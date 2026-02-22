@@ -156,7 +156,21 @@ export class BranchGraphService {
             const aScore = this.sortScore(a);
             const bScore = this.sortScore(b);
             if (aScore !== bScore) return bScore - aScore;
-            return a.chat_name.localeCompare(b.chat_name);
+
+            const aBranchPoint = Number(a.branch_point);
+            const bBranchPoint = Number(b.branch_point);
+            const aHasBranchPoint = Number.isFinite(aBranchPoint);
+            const bHasBranchPoint = Number.isFinite(bBranchPoint);
+            if (aHasBranchPoint && bHasBranchPoint && aBranchPoint !== bBranchPoint) {
+                return aBranchPoint - bBranchPoint;
+            }
+            if (aHasBranchPoint !== bHasBranchPoint) {
+                return aHasBranchPoint ? -1 : 1;
+            }
+
+            const aId = String(a.uuid || a.id || '');
+            const bId = String(b.uuid || b.id || '');
+            return aId.localeCompare(bId);
         };
 
         for (const children of childrenByParent.values()) {

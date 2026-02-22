@@ -1,23 +1,109 @@
-/* Top-down variant: keeps classic branch layout and SVG connectors enabled. */
+/* Top-down compact variant: geometry is computed in JS and positioned absolutely. */
+.family-tree-wrapper.tree-layout-top-down {
+    padding: 14px 20px;
+}
+
 .family-tree-wrapper.tree-layout-top-down .family-tree-inner {
     display: flex;
     justify-content: center;
+    align-items: flex-start;
+    min-width: 100%;
+    min-height: 100%;
+    position: relative;
+    z-index: var(--z-node);
 }
 
-.family-tree-wrapper.tree-layout-top-down .tree-branch {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 0 10px;
+.family-tree-wrapper.tree-layout-top-down .tree-node-layer {
+    position: relative;
+    min-width: var(--tree-topdown-canvas-w, 1px);
+    min-height: var(--tree-topdown-canvas-h, 1px);
+    z-index: var(--z-node);
 }
 
-.family-tree-wrapper.tree-layout-top-down .tree-children {
-    display: flex;
-    margin-top: 20px;
-    justify-content: center;
+.family-tree-wrapper.tree-layout-top-down .tree-node-shell {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translateX(-50%);
+    will-change: transform, opacity;
+    z-index: var(--z-node);
+}
+
+.family-tree-wrapper.tree-layout-top-down.renaming-active .tree-node-shell {
+    animation: none !important;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node-shell.renaming-shell {
+    z-index: calc(var(--z-toggle) + 4);
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node-shell .tree-entry {
+    position: relative;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node {
+    width: var(--tree-node-w);
+    min-width: var(--tree-node-w);
+    max-width: var(--tree-node-w);
+    box-sizing: border-box;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node.renaming {
+    width: clamp(210px, 42vw, var(--tree-topdown-rename-w));
+    min-width: clamp(210px, 42vw, var(--tree-topdown-rename-w));
+    max-width: clamp(210px, 42vw, var(--tree-topdown-rename-w));
+    z-index: calc(var(--z-toggle) + 3);
+}
+
+.family-tree-wrapper.tree-layout-top-down .node-content {
+    width: 100%;
+    min-width: 0;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node.renaming .node-content {
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.family-tree-wrapper.tree-layout-top-down .node-icon,
+.family-tree-wrapper.tree-layout-top-down .rename-icon {
+    flex: 0 0 auto;
+}
+
+.family-tree-wrapper.tree-layout-top-down .node-label {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node.renaming .rename-input-container {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node.renaming .rename-input {
+    min-width: 0;
+    max-width: none;
+}
+
+.family-tree-wrapper.tree-layout-top-down .tree-node.renaming .rename-actions {
+    flex: 0 0 auto;
 }
 
 .family-tree-wrapper.tree-layout-top-down #chat_tree_lines,
 .family-tree-wrapper.tree-layout-top-down #chat_tree_lines path {
     opacity: 0.95;
+}
+
+.family-tree-wrapper.tree-layout-top-down #chat_tree_lines {
+    z-index: var(--z-line);
+}
+
+@media (max-width: 768px) {
+    .family-tree-wrapper.tree-layout-top-down {
+        padding: 10px 12px;
+    }
 }

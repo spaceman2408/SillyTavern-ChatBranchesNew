@@ -1,6 +1,44 @@
 import { shouldDrawLines } from './treeLayout.js';
 
-export function drawTreeLines(layoutVariant) {
+function drawTopDownLines($svg, $wrapper, layout) {
+    const edges = Array.isArray(layout?.edges) ? layout.edges : [];
+    if (edges.length === 0) return;
+
+    const wrapperRect = $wrapper[0].getBoundingClientRect();
+    const nodeRectById = new Map();
+
+    $wrapper.find('.tree-node[data-uuid]').each((_, nodeEl) => {
+        const uuid = String($(nodeEl).data('uuid') || '');
+        if (!uuid) return;
+        nodeRectById.set(uuid, nodeEl.getBoundingClientRect());
+    });
+
+    edges.forEach((edge) => {
+        const parentRect = nodeRectById.get(String(edge.parentId || ''));
+        const childRect = nodeRectById.get(String(edge.childId || ''));
+        if (!parentRect || !childRect) return;
+
+        const x1 = (parentRect.left - wrapperRect.left) + (parentRect.width / 2);
+        const y1 = (parentRect.top - wrapperRect.top) + parentRect.height;
+        const x2 = (childRect.left - wrapperRect.left) + (childRect.width / 2);
+        const y2 = (childRect.top - wrapperRect.top);
+
+        const verticalGap = Math.max(1, y2 - y1);
+        const stem = Math.max(18, Math.min(64, verticalGap * 0.42));
+        const controlY1 = y1 + stem;
+        const controlY2 = y2 - stem;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${x1},${y1} C${x1},${controlY1} ${x2},${controlY2} ${x2},${y2}`);
+        path.setAttribute('stroke', '#666');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-width', '2');
+
+        $svg.append(path);
+    });
+}
+
+export function drawTreeLines(layoutVariant, options = {}) {
     const $svg = $('#chat_tree_lines');
     const $wrapper = $('.family-tree-wrapper');
 
@@ -16,6 +54,12 @@ export function drawTreeLines(layoutVariant) {
     $svg.attr('width', $wrapper[0].scrollWidth);
     $svg.attr('height', $wrapper[0].scrollHeight);
     $svg.empty();
+
+    const layout = options?.layout || null;
+    if ((layoutVariant || 'top-down') === 'top-down') {
+        drawTopDownLines($svg, $wrapper, layout);
+        return;
+    }
 
     const wrapperRect = $wrapper[0].getBoundingClientRect();
     const isHorizontal = (layoutVariant || 'top-down') === 'horizontal';
