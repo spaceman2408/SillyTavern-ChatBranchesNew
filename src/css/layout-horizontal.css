@@ -1,6 +1,6 @@
 /* Horizontal expansion variant: hierarchy grows from left to right. */
 .family-tree-wrapper.tree-layout-horizontal {
-    padding: 12px 20px;
+    padding: 12px 18px;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .family-tree-inner {
@@ -11,30 +11,75 @@
     display: flex;
     flex-direction: row;
     align-items: flex-start;
-    margin: 2px 0;
+    margin: 0;
+    gap: var(--tree-horizontal-col-gap);
+    overflow: visible;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-entry {
-    margin-right: 14px;
+    margin-right: 0;
+    overflow: visible;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-children {
     display: flex;
     flex-direction: column;
     margin-top: 0;
-    gap: 2px;
+    gap: var(--tree-horizontal-row-gap);
     justify-content: flex-start;
+    padding-left: var(--tree-horizontal-indent);
+    overflow: visible;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .tree-node {
-    min-width: 170px;
+    width: var(--tree-horizontal-node-w);
+    min-width: var(--tree-horizontal-node-w);
+    max-width: var(--tree-horizontal-node-w);
     text-align: left;
     padding-top: 6px;
     padding-bottom: 6px;
+    box-sizing: border-box;
+    overflow: visible;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node.renaming {
+    width: clamp(220px, 42vw, var(--tree-horizontal-rename-w));
+    min-width: clamp(220px, 42vw, var(--tree-horizontal-rename-w));
+    max-width: clamp(220px, 42vw, var(--tree-horizontal-rename-w));
+    z-index: calc(var(--z-toggle) + 4);
 }
 
 .family-tree-wrapper.tree-layout-horizontal .node-content {
     justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .node-label {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node.renaming .node-content {
+    gap: 8px;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node.renaming .rename-input-container {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node.renaming .rename-input {
+    min-width: 0;
+    max-width: none;
+}
+
+.family-tree-wrapper.tree-layout-horizontal .tree-node.renaming .rename-actions {
+    flex: 0 0 auto;
 }
 
 .family-tree-wrapper.tree-layout-horizontal .expand-toggle {
@@ -47,8 +92,4 @@
 
 .family-tree-wrapper.tree-layout-horizontal .expand-toggle:hover {
     transform: translateY(-50%) scale(1.15);
-}
-
-.family-tree-wrapper.tree-layout-horizontal .tree-children {
-    padding-left: 8px;
 }

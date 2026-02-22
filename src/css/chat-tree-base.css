@@ -25,6 +25,15 @@
     --tree-topdown-level-gap: 68;
     --tree-topdown-padding: 36px;
     --tree-topdown-rename-w: 240px;
+    --tree-horizontal-node-w: 172px;
+    --tree-horizontal-rename-w: 260px;
+    --tree-horizontal-col-gap: 14px;
+    --tree-horizontal-row-gap: 4px;
+    --tree-horizontal-indent: 10px;
+    --tree-list-max-w: 760px;
+    --tree-list-indent: 20px;
+    --tree-list-row-gap: 6px;
+    --tree-list-rename-w: 360px;
     
     /* Z-Index Layers */
     --z-line: 1;

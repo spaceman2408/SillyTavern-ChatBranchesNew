@@ -64,9 +64,12 @@ export function buildTreeMarkup(controller) {
     if (controller.treeRoots.length === 0) {
         return '<div class="chat-tree-empty">No connected chat history found.</div>';
     }
+    const wrapperClass = controller.isRenaming
+        ? `${getLayoutClass(controller.layoutVariant)} renaming-active`
+        : getLayoutClass(controller.layoutVariant);
 
     return `
-        <div class="family-tree-wrapper ${getLayoutClass(controller.layoutVariant)}">
+        <div class="family-tree-wrapper ${wrapperClass}">
             <svg id="chat_tree_lines"></svg>
             <div class="family-tree-inner">
                 ${controller.treeRoots.map((root) => renderNodeRecursive(controller, root, 0)).join('')}

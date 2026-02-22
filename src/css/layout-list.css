@@ -1,6 +1,6 @@
 /* List variant: compact readable list for very large trees. */
 .family-tree-wrapper.tree-layout-list {
-    padding: 18px 22px;
+    padding: 16px 20px;
 }
 
 .family-tree-wrapper.tree-layout-list #chat_tree_lines {
@@ -13,17 +13,19 @@
 
 .family-tree-wrapper.tree-layout-list .tree-branch {
     display: block;
-    margin: 6px 0;
+    margin: var(--tree-list-row-gap) 0;
+    overflow: visible;
 }
 
 .family-tree-wrapper.tree-layout-list .tree-entry {
     display: block;
+    overflow: visible;
 }
 
 .family-tree-wrapper.tree-layout-list .tree-children {
     display: block;
-    margin-top: 8px;
-    margin-left: 18px;
+    margin-top: 6px;
+    margin-left: var(--tree-list-indent);
     padding-left: 12px;
     border-left: 1px solid rgba(255, 255, 255, 0.16);
 }
@@ -31,13 +33,46 @@
 .family-tree-wrapper.tree-layout-list .tree-node {
     min-width: 100%;
     width: fit-content;
-    max-width: min(100%, 720px);
+    max-width: min(100%, var(--tree-list-max-w));
     text-align: left;
     padding-right: 34px;
+    box-sizing: border-box;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-node.renaming {
+    width: min(100%, var(--tree-list-rename-w));
+    max-width: min(100%, var(--tree-list-rename-w));
+    padding-right: 12px;
+    z-index: calc(var(--z-toggle) + 4);
 }
 
 .family-tree-wrapper.tree-layout-list .node-content {
     justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+}
+
+.family-tree-wrapper.tree-layout-list .node-label {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-node.renaming .rename-input-container {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-node.renaming .rename-input {
+    min-width: 0;
+    max-width: none;
+}
+
+.family-tree-wrapper.tree-layout-list .tree-node.renaming .rename-actions {
+    flex: 0 0 auto;
 }
 
 .family-tree-wrapper.tree-layout-list .expand-toggle {
