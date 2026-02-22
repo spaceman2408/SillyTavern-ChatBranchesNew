@@ -24,6 +24,13 @@ function parseCssPxVar(varName, fallback) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeBranchPoint(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(0, Math.floor(parsed));
+}
+
 function buildTopDownLayoutKey(treeRoots, expandedUUIDs) {
     const roots = Array.isArray(treeRoots) ? treeRoots : [];
     const rootIds = roots.map((root) => String(root?.id || '')).join('|');
@@ -259,9 +266,11 @@ export class TreeViewController {
         if (this.treeRoots.length === 0) {
             this.topDownLayout = null;
             this.topDownLayoutKey = null;
+            this.updateActiveHeader();
             return;
         }
 
+        this.updateActiveHeader();
         this.refreshLines();
         this.bindEvents();
     }
@@ -436,6 +445,7 @@ export class TreeViewController {
                                     <option value="">Select Root...</option>
                                 </select>
                             </div>
+                            <div id="chat_tree_active_chat" class="chat-tree-active-chat"></div>
                         </div>
                         <div id="chat_tree_close" class="menu_button fa-solid fa-xmark"></div>
                     </div>
@@ -445,6 +455,7 @@ export class TreeViewController {
         `;
 
         $('body').append(html);
+        this.updateActiveHeader();
 
         $('#chat_tree_close').on('click', () => this.hide());
 
@@ -466,6 +477,28 @@ export class TreeViewController {
             clearTimeout(this.resizeTimer);
             this.resizeTimer = setTimeout(() => this.refreshLines(), 100);
         });
+    }
+
+    getActiveChatHeaderText() {
+        const activeNode = this.currentNode
+            || (this.currentChatUUID ? this.nodeMap.get(this.currentChatUUID) : null)
+            || null;
+
+        const activeName = String(activeNode?.name || this.currentChatFile || '').trim();
+        if (!activeName) return 'Current: (unknown)';
+
+        const branchPoint = normalizeBranchPoint(activeNode?.data?.branch_point);
+        const branchSuffix = branchPoint === null ? '' : ` | Msg #${branchPoint}`;
+        return `Current: ${activeName}${branchSuffix}`;
+    }
+
+    updateActiveHeader() {
+        const $activeHeader = $('#chat_tree_active_chat');
+        if (!$activeHeader.length) return;
+
+        const headerText = this.getActiveChatHeaderText();
+        $activeHeader.text(headerText);
+        $activeHeader.attr('title', headerText);
     }
 
     setLoading(isLoading) {
