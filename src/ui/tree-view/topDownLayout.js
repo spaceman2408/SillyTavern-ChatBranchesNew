@@ -123,6 +123,33 @@ function computeRequiredShift(placedRightContour, nextLeftContour, gap) {
     return requiredShift;
 }
 
+/**
+ * @typedef {Object} TopDownLayoutMetrics
+ * @property {number} [nodeWidth]
+ * @property {number} [nodeHeight]
+ */
+
+/**
+ * @typedef {Object} TopDownLayoutSpacing
+ * @property {number} [siblingGap]
+ * @property {number} [rootGap]
+ * @property {number} [levelGap]
+ * @property {number} [padding]
+ */
+
+/**
+ * @typedef {Object} TopDownLayoutOptions
+ * @property {any[]} [roots]
+ * @property {Set<string>|string[]} [expandedUUIDs]
+ * @property {TopDownLayoutMetrics} [metrics]
+ * @property {TopDownLayoutSpacing} [spacing]
+ * @property {string|null} [activeNodeId]
+ * @property {string|null} [activeNodeName]
+ */
+
+/**
+ * @param {TopDownLayoutOptions} [options]
+ */
 export function computeTopDownLayout({
     roots = [],
     expandedUUIDs,
