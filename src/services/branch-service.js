@@ -37,12 +37,46 @@ export class BranchService {
         this.branchGraphService.invalidateCharacter(avatar);
     }
 
+    hasBranchIdentity(metadata) {
+        if (!metadata || typeof metadata !== 'object') return false;
+        const branchPoint = Number(metadata.branch_point);
+        return Boolean(
+            metadata.uuid
+            || metadata.parent_uuid
+            || metadata.root_uuid
+            || Number.isFinite(branchPoint),
+        );
+    }
+
+    async clearCheckpointBranchIdentity(snapshot) {
+        if (!snapshot?.chatMetadata || typeof snapshot.chatMetadata !== 'object') return false;
+        if (!this.hasBranchIdentity(snapshot.chatMetadata)) return false;
+
+        const contextKey = this.getContextKey(snapshot);
+        const avatar = snapshot.character?.avatar || null;
+
+        delete snapshot.chatMetadata.uuid;
+        delete snapshot.chatMetadata.parent_uuid;
+        delete snapshot.chatMetadata.root_uuid;
+        delete snapshot.chatMetadata.branch_point;
+
+        if (!this.isSameContext(contextKey)) return false;
+        const current = ctxSnapshot();
+        if (!this.isCharacterChatContext(current) || !current.chatMetadata) return false;
+
+        await current.ctx.saveMetadata();
+        this.invalidateCharacterGraph(avatar);
+        return true;
+    }
+
     async ensureChatUUID() {
         const snapshot = ctxSnapshot();
         if (!this.isCharacterChatContext(snapshot)) return false;
         if (!snapshot.chatMetadata) return false;
         if (!this.isExtensionActive()) return false;
-        if (isCheckpointChat(snapshot.chatName)) return false;
+        if (isCheckpointChat(snapshot.chatName, snapshot.chatMetadata)) {
+            return this.clearCheckpointBranchIdentity(snapshot);
+        }
 
         const contextKey = this.getContextKey(snapshot);
         const avatar = snapshot.character?.avatar || null;
@@ -103,7 +137,7 @@ export class BranchService {
             return null;
         }
 
-        if (isCheckpointChat(snapshot.chatName)) {
+        if (isCheckpointChat(snapshot.chatName, snapshot.chatMetadata)) {
             toastr.info('Cannot create branches from checkpoint chats.', 'Chat Branches');
             return null;
         }

@@ -8,6 +8,7 @@ import { RebuildService } from './src/services/rebuild-service.js';
 import { SettingsPanel } from './src/ui/settings-panel.js';
 import { ButtonManager } from './src/ui/button-manager.js';
 import { TreeViewController } from './src/ui/tree-view/TreeViewController.js';
+import { isCheckpointChat } from './src/utils/checkpoints.js';
 
 const LOG_PREFIX = '[Chat Branches]';
 const logInfo = (message, meta = null) => {
@@ -143,6 +144,16 @@ function registerEvents() {
                 previousChat: before.chatName || null,
                 previousUuid: before.chatMetadata?.uuid || null,
                 metadataUpdated: false,
+            });
+        } else if (isCheckpointChat(switched.chatName, switched.chatMetadata)) {
+            metadataUpdated = await branchService.ensureChatUUID();
+            const after = ctxSnapshot();
+            logInfo('Switched to checkpoint chat; UUID sync skipped (checkpoint chats are excluded)', {
+                chatName: after.chatName || switched.chatName || null,
+                uuid: after.chatMetadata?.uuid || null,
+                previousChat: before.chatName || null,
+                previousUuid: before.chatMetadata?.uuid || null,
+                metadataUpdated,
             });
         } else {
             metadataUpdated = await branchService.ensureChatUUID();

@@ -9,10 +9,7 @@ import { buildTopDownMarkup, buildTreeMarkup, loadingMarkup, renderNodeRecursive
 import { computeTopDownLayout } from './topDownLayout.js';
 import { cancelRenameFlow, confirmRenameFlow, startRenameFlow } from './treeRenameFlow.js';
 import { handleRootChange as handleRootChangeSelection, populateRootDropdown as populateRoots } from './treeRootSelector.js';
-
-function isCheckpointChat(chatName) {
-    return chatName && chatName.includes('Checkpoint #');
-}
+import { isCheckpointChat } from '../../utils/checkpoints.js';
 
 function normalizeChatName(name) {
     return String(name || '').replace(/\.jsonl$/i, '').trim().toLowerCase();
@@ -156,7 +153,7 @@ export class TreeViewController {
             return;
         }
 
-        if (isCheckpointChat(this.currentChatFile)) {
+        if (isCheckpointChat(this.currentChatFile, this.chat_metadata)) {
             toastr.info('You are viewing a checkpoint (bookmark) chat. Checkpoints are not tracked in the branch tree.', 'Chat Branches');
             return;
         }
