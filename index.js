@@ -133,15 +133,27 @@ function registerEvents() {
         const before = ctxSnapshot();
 
         syncCharacterSwapInvalidation();
-        const metadataUpdated = await branchService.ensureChatUUID();
+        const switched = ctxSnapshot();
 
-        const after = ctxSnapshot();
-        logInfo(`Chat changed to "${after.chatName || '(unknown)'}"`, {
-            uuid: after.chatMetadata?.uuid || null,
-            previousChat: before.chatName || null,
-            previousUuid: before.chatMetadata?.uuid || null,
-            metadataUpdated,
-        });
+        let metadataUpdated = false;
+        if (switched.groupId) {
+            logInfo('Switched to group chat; Chat Branches UUID sync skipped (group chats are unsupported)', {
+                groupId: switched.groupId,
+                chatId: switched.chatId || null,
+                previousChat: before.chatName || null,
+                previousUuid: before.chatMetadata?.uuid || null,
+                metadataUpdated: false,
+            });
+        } else {
+            metadataUpdated = await branchService.ensureChatUUID();
+            const after = ctxSnapshot();
+            logInfo(`Chat changed to "${after.chatName || '(unknown)'}"`, {
+                uuid: after.chatMetadata?.uuid || null,
+                previousChat: before.chatName || null,
+                previousUuid: before.chatMetadata?.uuid || null,
+                metadataUpdated,
+            });
+        }
 
         treeView.updateDependencies(treeDependencies());
         buttonManager.injectOptionsButton();
