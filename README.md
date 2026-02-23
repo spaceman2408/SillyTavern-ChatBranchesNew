@@ -15,6 +15,18 @@ To set expectations: this was 100% vibe-coded using Kiro and ~~Claude Opus~~ Rew
 
 > Currently DOES NOT support group chats
 
+## Announcement
+
+A new branch is available: `ChatBranches-NoPlugin`. This branch does not require the server plugin; it uses in-memory branch caches and manually reads chat files from disk.
+
+After installation, you can switch to this branch in SillyTavern:
+1. Go to **Manage Extensions**
+2. Find **Chat Branches**
+3. Click the **Branch** button
+4. Select `ChatBranches-NoPlugin`
+
+If you have characters with 1000+ chats, the plugin-based branch will be faster and is recommended for better performance.
+
 # Chat Branches Rewrite (v1.0.0)
 
 This is the rewritten Chat Branches extension with a cleaner structure, smoother UI behavior, and full branch management for character chats.
@@ -52,7 +64,6 @@ This is the rewritten Chat Branches extension with a cleaner structure, smoother
 This extension requires the companion server plugin:
 
 - **Plugin repo:** https://github.com/spaceman2408/chat-branches-plugin
-- **Plugin API base:** `/api/plugins/chat-branches-plugin`
 
 If the plugin is not detected, tree actions and rebuild are disabled until it is available.
 
