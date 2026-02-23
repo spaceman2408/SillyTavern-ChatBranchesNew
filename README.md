@@ -11,7 +11,7 @@
 # Chat Branches (No-Plugin Branch)
 
 This README is for:
-- `no-plugin-early-testing-use-at-your-own-risk`
+- `ChatBranches-NoPlugin`
 
 This branch runs fully in memory from chat metadata and does **not** require a server plugin.
 
@@ -34,7 +34,7 @@ Key features:
 
 - Repository: https://github.com/spaceman2408/SillyTavern-ChatBranchesNew
 - `master`: plugin-backed architecture (best for large-scale performance)
-- `no-plugin-early-testing-use-at-your-own-risk`: plugin-free, in-memory architecture (this README)
+- `ChatBranches-NoPlugin`: plugin-free, in-memory architecture (this README)
 
 ## Requirements
 
@@ -50,7 +50,7 @@ No companion plugin is required on this branch.
 3. Paste:
    - `https://github.com/spaceman2408/SillyTavern-ChatBranchesNew`
 4. Switch extension branch to:
-   - `no-plugin-early-testing-use-at-your-own-risk`
+   - `ChatBranches-NoPlugin`
 5. Reload extensions/page (or restart SillyTavern).
 6. Enable **Chat Branches** in extension settings if it is disabled.
 
@@ -59,7 +59,7 @@ No companion plugin is required on this branch.
    - `public/scripts/extensions/third-party/SillyTavern-ChatBranchesNew`
 2. Reload extensions/page (or restart SillyTavern).
 3. Switch extension branch to:
-   - `no-plugin-early-testing-use-at-your-own-risk`
+   - `ChatBranches-NoPlugin`
 4. Enable **Chat Branches** in extension settings if it is disabled.
 
 ## Usage
@@ -138,7 +138,7 @@ On modest hardware (`Ryzen 3 3250U` laptop with `Radeon Graphics`), the same `~7
 ## FAQ
 
 ### Is this branch plugin-free?
-Yes. `no-plugin-early-testing-use-at-your-own-risk` runs without the chat-branches server plugin.
+Yes. `ChatBranches-NoPlugin` runs without the chat-branches server plugin.
 
 ### Why can large trees still feel slow?
 The extension builds and renders relationships from chat metadata in memory. More chats and deeper trees require more processing and DOM work.
@@ -169,7 +169,7 @@ It rebuilds the extension's in-memory relationship cache from currently availabl
 Checkpoint chats are intentionally excluded from branch tracking and UUID injection guardrails.
 
 ### Which branch should I use?
-- Use `no-plugin-early-testing-use-at-your-own-risk` for zero plugin dependency
+- Use `ChatBranches-NoPlugin` for zero plugin dependency
 - Use `master` for plugin-backed architecture and better large-scale responsiveness
 
 ## Quick Showcase
