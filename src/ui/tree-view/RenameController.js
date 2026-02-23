@@ -225,5 +225,3 @@ export class RenameController {
         }
     }
 }
-
-export { RenameController as ChatRenameHandler };

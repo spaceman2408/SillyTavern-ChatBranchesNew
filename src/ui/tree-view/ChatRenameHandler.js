@@ -1,1 +1,0 @@
-export { RenameController as ChatRenameHandler } from './RenameController.js';

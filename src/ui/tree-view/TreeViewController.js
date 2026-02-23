@@ -1,6 +1,6 @@
 import { ContextMenu } from './ContextMenu.js';
 import { MessageViewerPopup } from './MessageViewerPopup.js';
-import { ChatRenameHandler } from './ChatRenameHandler.js';
+import { RenameController } from './RenameController.js';
 import { drawTreeLines } from './treeLineDrawer.js';
 import { collectExpandedPathIds, buildTreeModel, findCurrentNode, isolateTreeForNode } from './treeModel.js';
 import { ensureTreeStylesLoaded } from './treeLayout.js';
@@ -71,7 +71,7 @@ export class TreeViewController {
         this.contextMenu = new ContextMenu();
         this.messageViewerPopup = null;
         this.contextMenuNode = null;
-        this.renameHandler = new ChatRenameHandler({
+        this.renameHandler = new RenameController({
             token: this.token,
             characters: this.characters,
             this_chid: this.this_chid,
