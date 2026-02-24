@@ -15,17 +15,36 @@ To set expectations: this was 100% vibe-coded using Kiro and ~~Claude Opus~~ Rew
 
 > Currently DOES NOT support group chats
 
-## Announcement
+---
 
-A new branch is available: `ChatBranches-NoPlugin`. This branch does not require the server plugin; it uses in-memory branch caches and manually reads chat files from disk.
+##  Which Version Should I Use?
 
-After installation, you can switch to this branch in SillyTavern:
-1. Go to **Manage Extensions**
-2. Find **Chat Branches**
-3. Click the **Branch** button
-4. Select `ChatBranches-NoPlugin`
+There are two ways to run Chat Branches. **When you install the extension, you get the default (master) version**, which requires a companion server plugin. If you don't want to set up the plugin, you can switch to the no-plugin version after installing.
 
-If you have characters with 1000+ chats, the plugin-based branch will be faster and is recommended for better performance.
+| | Default (`master`) | `ChatBranches-NoPlugin` |
+|---|---|---|
+| **Server plugin required?** | ✅ Yes | ❌ No |
+| **Setup difficulty** | A bit more work | Easier |
+| **Best for large chat libraries (1000+ chats)?** | ✅ Yes, faster | ⚠️ May be significantly slower |
+
+**Not sure which to pick?**
+- If you don't want to install anything extra → use `ChatBranches-NoPlugin`
+- If you have a lot of chats and want the best performance → use the default with the plugin
+
+### Switching to the No-Plugin Version
+
+After installing Chat Branches, you can switch to the no-plugin version at any time:
+
+1. In SillyTavern, go to **Extensions → Manage Extensions**
+2. Find **Chat Branches** in the list
+3. Click the **Branch** button next to it
+4. Select **`ChatBranches-NoPlugin`** from the dropdown
+5. **Reload SillyTavern** for the change to take effect
+
+For more details on how the no-plugin version works, see the `ChatBranches-NoPlugin` branch README:
+https://github.com/spaceman2408/SillyTavern-ChatBranchesNew/tree/ChatBranches-NoPlugin
+
+---
 
 # Chat Branches Rewrite (v1.0.0)
 
@@ -61,11 +80,11 @@ This is the rewritten Chat Branches extension with a cleaner structure, smoother
 
 ## Requirements
 
-This extension requires the companion server plugin:
+When you install Chat Branches, the default version (`master`) requires the companion server plugin for full functionality. If you'd prefer not to use the plugin, see [Switching to the No-Plugin Version](#switching-to-the-no-plugin-version) above.
 
 - **Plugin repo:** https://github.com/spaceman2408/chat-branches-plugin
 
-If the plugin is not detected, tree actions and rebuild are disabled until it is available.
+Without the plugin installed and running on the default (`master`) version, all Chat Branches controls remain disabled until it is installed and detected.
 
 ## Installation
 
@@ -79,10 +98,12 @@ If the plugin is not detected, tree actions and rebuild are disabled until it is
 4. Restart SillyTavern (or reload extensions/page)
 5. Enable **Chat Branches** in Extensions settings (if not already enabled)
 
-### Server Plugin
+> **Don't want to use the plugin?** After installing, follow the steps in [Switching to the No-Plugin Version](#switching-to-the-no-plugin-version) above, then you're done! No plugin setup needed.
+
+### Server Plugin (Required for default (`master`) branch only)
 1. Install `chat-branches-plugin` by visiting its [repo](https://github.com/spaceman2408/chat-branches-plugin) and following the instructions
-2. Restart SillyTavern server (you must restart the console not refresh the browser)
-3. The extension will auto-detect plugin availability and enable controls
+2. Restart SillyTavern server (you must restart the console, not just refresh the browser)
+3. Chat Branches will auto-detect the plugin and enable all controls
 
 ## How to Use
 
@@ -110,13 +131,13 @@ Open **Extensions -> Chat Branches**:
 
 - Group chats are not supported
 - Checkpoint chats are excluded from branch tracking
-- Plugin is required for full functionality
+- `ChatBranches-NoPlugin` may be slower on very large chat libraries (1000+ chats)
 
 ## Troubleshooting
 
 ### Plugin not detected
 1. Confirm plugin install path and server startup logs
-2. Restart SillyTavern server
+2. Restart SillyTavern server (console restart, not browser refresh)
 3. Wait for auto health check or refresh once
 
 ### Tree missing expected branches
